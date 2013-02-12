@@ -1,6 +1,5 @@
 package com.scurab.java.ftpleecher;
 
-import java.io.File;
 import java.io.IOException;
 
 /**

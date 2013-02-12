@@ -43,11 +43,23 @@ public class FTPDownloadThread extends Thread implements Runnable, Cloneable {
         Created, Connecting, Connected, Downloading, Error, WaitingForRetry, Finished
     }
 
+    /**
+     * Use this constructor if download is not divided to parts
+     * @param config
+     */
+    protected FTPDownloadThread(FTPFactory.FactoryConfig config){
+        this(config, -1);
+    }
+
     protected FTPDownloadThread(FTPFactory.FactoryConfig config, int part){
         mConfig = config;
         mPart = part;
         setFtpState(State.Created);
-        setName(String.format("%s %03d", mConfig.server, part));
+        if(mPart == -1){
+            setName(String.format("%s %03d", mConfig.server, part));
+        }else{
+            setName(mConfig.server);
+        }
     }
 
     @Override
@@ -202,7 +214,12 @@ public class FTPDownloadThread extends Thread implements Runnable, Cloneable {
     private File getLocalFile(){
         String[] urlParts = mConfig.filename.split("/");
         String fileName = urlParts[urlParts.length-1];
-        String localFile = String.format(mConfig.localFileTemplate, mConfig.outputDirectory, fileName, mPart);
+        String localFile = null;
+        if(mPart == -1){
+            localFile = String.format(mConfig.localSingleFileTemplate, mConfig.outputDirectory, fileName);
+        }else{
+            localFile = String.format(mConfig.localMultipleFilesTemplate, mConfig.outputDirectory, fileName, mPart);
+        }
         return new File(localFile);
     }
 
@@ -245,9 +262,16 @@ public class FTPDownloadThread extends Thread implements Runnable, Cloneable {
     }
     //endregion
 
+    public FTPFactory.FactoryConfig getConfig() {
+        return mConfig;
+    }
 
     @Override
     protected FTPDownloadThread clone() throws CloneNotSupportedException {
         return new FTPDownloadThread(mConfig, mPart);
+    }
+
+    public int getPart() {
+        return mPart;
     }
 }

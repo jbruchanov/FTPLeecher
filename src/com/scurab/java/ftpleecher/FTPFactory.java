@@ -6,6 +6,9 @@ import org.apache.commons.net.ftp.FTPClient;
 import org.apache.commons.net.ftp.FTPFile;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 
 /**
  * Created with IntelliJ IDEA.
@@ -38,23 +41,65 @@ public class FTPFactory {
         }
     }
 
-    public FTPDownloadThread[] createThreads() throws IOException, FatalFTPException {
+    /**
+     * Creates collection of download threads
+     * @return
+     * @throws IOException
+     * @throws FatalFTPException
+     */
+    public Collection<FTPDownloadThread> createThreads() throws IOException, FatalFTPException {
         FTPClient fc = openFtpClient(mConfig);
 
         FTPFile[] files = fc.listFiles(mConfig.filename);
-        assert(files.length == 1);
-        FTPFile file = files[0];
+
+        List<FTPDownloadThread> result = new ArrayList<FTPDownloadThread>();
+        for(FTPFile file : files){
+            if(file.isFile()){
+                result.addAll(createThreadsForFile(mConfig, file));
+            }else{
+                FactoryConfig newCfg = mConfig.clone();
+                newCfg.filename = mConfig.filename + (mConfig.filename.endsWith("/") ? "" : "/") + file.getName();
+                result.addAll(createThreadsForDirectory(newCfg, fc, file));
+            }
+        }
+        return result;
+    }
+
+    private List<FTPDownloadThread> createThreadsForFile(final FactoryConfig config, final FTPFile file){
         long size = file.getSize();
 
-        final int parts = (int)Math.ceil((size / (double)mConfig.pieceLength));
+        final int parts = (int)Math.ceil((size / (double)config.pieceLength));
 
-        FTPDownloadThread[] result = new FTPDownloadThread[parts];
+        List<FTPDownloadThread> result = new ArrayList<FTPDownloadThread>();
 
-        for(int i = 0;i<parts;i++){
-            FTPDownloadThread ft = new FTPDownloadThread(mConfig, i);
-            result[i] = ft;
+        FTPFactory.FactoryConfig newCfg = config.clone();
+        if(!config.filename.endsWith(file.getName())){
+            newCfg.filename = config.filename + (config.filename.endsWith("/") ? "" : "/") + file.getName();
         }
 
+        if(parts > 1){
+            for(int i = 0;i<parts;i++){
+                result.add(new FTPDownloadThread(newCfg, i));
+            }
+        }else{
+            result.add(new FTPDownloadThread(newCfg));
+        }
+
+        return result;
+    }
+
+    private List<FTPDownloadThread> createThreadsForDirectory(final FactoryConfig config, final FTPClient fclient, final FTPFile file) throws IOException {
+        FTPFile[] files = fclient.listFiles(config.filename);
+        List<FTPDownloadThread> result = new ArrayList<FTPDownloadThread>();
+        for(FTPFile f : files){
+            if(f.isDirectory()){
+                result.addAll(createThreadsForDirectory(config, fclient, f));
+            }else{
+                FTPFactory.FactoryConfig newCfg = config.clone();
+                newCfg.filename = config.filename + (config.filename.endsWith("/") ? "" : "/") + f.getName();
+                result.addAll(createThreadsForFile(config, f));
+            }
+        }
         return result;
     }
 
@@ -78,7 +123,7 @@ public class FTPFactory {
         return fc;
     }
 
-    public static class FactoryConfig
+    public static class FactoryConfig implements Cloneable
     {
         /**
          * server address
@@ -138,7 +183,13 @@ public class FTPFactory {
          * local file template for {@link String#format(String, Object...)}<br/>
          * Must contains 3 variables for outputFolder, file name and counter
          */
-        public String localFileTemplate = "%s/%s.part%03d";
+        public String localMultipleFilesTemplate = "%s/%s.part%03d";
+
+        /**
+         * local file template for {@link String#format(String, Object...)}<br/>
+         * Must contains 3 variables for outputFolder, file name and counter
+         */
+        public String localSingleFileTemplate = "%s/%s";
 
         /**
          * Set download mode for file<br/>
@@ -146,5 +197,15 @@ public class FTPFactory {
          *
          */
         public int fileType = FTP.BINARY_FILE_TYPE;
+
+        @Override
+        protected FactoryConfig clone() {
+            try{
+                return (FactoryConfig)super.clone();
+            }
+            catch(Exception e){
+                throw new IllegalStateException(e);
+            }
+        }
     }
 }

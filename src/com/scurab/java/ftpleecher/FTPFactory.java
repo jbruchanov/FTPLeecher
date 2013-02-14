@@ -1,7 +1,7 @@
 package com.scurab.java.ftpleecher;
 
 import com.scurab.java.ftpleecher.tools.TextUtils;
-import org.apache.commons.net.ftp.FTP;
+import com.sun.javaws.exceptions.InvalidArgumentException;
 import org.apache.commons.net.ftp.FTPClient;
 import org.apache.commons.net.ftp.FTPFile;
 
@@ -32,13 +32,13 @@ public class FTPFactory {
             throw new IllegalArgumentException("Username or password is null!");
         }
 
-        if(TextUtils.isNullOrEmpty(config.filename)){
-            throw new IllegalArgumentException("Filename must be set!");
-        }
-
-        if(TextUtils.isNullOrEmpty(config.outputDirectory)){
-            throw new IllegalArgumentException("Output directory must be set!");
-        }
+//        if(TextUtils.isNullOrEmpty(config.filename)){
+//            throw new IllegalArgumentException("Filename must be set!");
+//        }
+//
+//        if(TextUtils.isNullOrEmpty(config.outputDirectory)){
+//            throw new IllegalArgumentException("Output directory must be set!");
+//        }
     }
 
     /**
@@ -47,22 +47,29 @@ public class FTPFactory {
      * @throws IOException
      * @throws FatalFTPException
      */
-    public Collection<FTPDownloadThread> createThreads() throws IOException, FatalFTPException {
+    public DownloadTask createTask(String fullpath, String downloadTo) throws IOException, FatalFTPException {
+        mConfig.outputDirectory = downloadTo;
         FTPClient fc = openFtpClient(mConfig);
 
-        FTPFile[] files = fc.listFiles(mConfig.filename);
+        FTPFile[] files = fc.listFiles(fullpath);
 
         List<FTPDownloadThread> result = new ArrayList<FTPDownloadThread>();
+        if(result == null){
+            throw new IllegalArgumentException("FTP item not found, path:" + fullpath);
+        }
         for(FTPFile file : files){
+            FactoryConfig newCfg = mConfig.clone();
             if(file.isFile()){
-                result.addAll(createThreadsForFile(mConfig, file));
+                newCfg.filename = fullpath;
+                result.addAll(createThreadsForFile(newCfg, file));
             }else{
-                FactoryConfig newCfg = mConfig.clone();
                 newCfg.filename = mConfig.filename + (mConfig.filename.endsWith("/") ? "" : "/") + file.getName();
                 result.addAll(createThreadsForDirectory(newCfg, fc, file));
             }
         }
-        return result;
+
+        DownloadTask task = new DownloadTask(fullpath, result);
+        return task;
     }
 
     private List<FTPDownloadThread> createThreadsForFile(final FactoryConfig config, final FTPFile file){
@@ -72,7 +79,7 @@ public class FTPFactory {
 
         List<FTPDownloadThread> result = new ArrayList<FTPDownloadThread>();
 
-        FTPFactory.FactoryConfig newCfg = config.clone();
+        FactoryConfig newCfg = config.clone();
         if(!config.filename.endsWith(file.getName())){
             newCfg.filename = config.filename + (config.filename.endsWith("/") ? "" : "/") + file.getName();
         }
@@ -95,7 +102,7 @@ public class FTPFactory {
             if(f.isDirectory()){
                 result.addAll(createThreadsForDirectory(config, fclient, f));
             }else{
-                FTPFactory.FactoryConfig newCfg = config.clone();
+                FactoryConfig newCfg = config.clone();
                 newCfg.filename = config.filename + (config.filename.endsWith("/") ? "" : "/") + f.getName();
                 result.addAll(createThreadsForFile(config, f));
             }
@@ -109,103 +116,30 @@ public class FTPFactory {
      * @return
      * @throws IOException
      */
-    protected static FTPClient openFtpClient(FactoryConfig config) throws IOException, FatalFTPException {
+    public static FTPClient openFtpClient(FactoryConfig config) throws IOException, FatalFTPException {
         FTPClient fc = new FTPClient();
+
+
 
         fc.connect(config.server, config.port);
         if(config.username != null){
             fc.login(config.username, config.password);
         }
 
+        if(config.passive){
+            fc.enterLocalPassiveMode();
+        }else{
+            fc.enterLocalActiveMode();
+        }
+
+        fc.setControlKeepAliveTimeout(60);
+
+        fc.setSoTimeout(2000);
+        fc.setDataTimeout(2000);
+
         if(!fc.setFileType(config.fileType)){
             throw new FatalFTPException("Unable to set file type:"+ config.fileType);
         }
         return fc;
-    }
-
-    public static class FactoryConfig implements Cloneable
-    {
-        /**
-         * server address
-         * <code>ftp.linux.com</code>
-         */
-        public String server;
-
-        /**
-         * port for ftp server, default is 21
-         */
-        public int port = 21;
-
-        /**
-         * Optional value for username<br/>
-         * If set, password must be set aswell
-         */
-        public String username;
-
-        /**
-         * Optional value for password<br/>
-         * If set, username must be ser asweel;
-         */
-        public String password;
-
-        /**
-         * Remote filename to download<br/>
-         * Must be defined full path
-         * <code>/folder1/folder2/kernel.img</code>
-         */
-        public String filename;
-
-        /**
-         * Define length of one particular piece of downloading in bytes.<br/>
-         * Default value is 15MB
-         */
-        public int pieceLength = 15000000;
-
-        /**
-         * Define output directory for temp files
-         */
-        public String outputDirectory;
-
-        /**
-         * Allow resuming of downloading parts.<br/>
-         * If false, part will be deleted and completely re-downloaded if there will be any download problem.
-         */
-        public boolean resume = false;
-
-
-        /**
-         * Define buffer size for ftp downloading<br/>
-         * Default value is 64KiB
-         */
-        public int bufferSize = 64*1024;
-
-        /**
-         * local file template for {@link String#format(String, Object...)}<br/>
-         * Must contains 3 variables for outputFolder, file name and counter
-         */
-        public String localMultipleFilesTemplate = "%s/%s.part%03d";
-
-        /**
-         * local file template for {@link String#format(String, Object...)}<br/>
-         * Must contains 3 variables for outputFolder, file name and counter
-         */
-        public String localSingleFileTemplate = "%s/%s";
-
-        /**
-         * Set download mode for file<br/>
-         * {@link FTP#BINARY_FILE_TYPE}, {@link FTP#ASCII_FILE_TYPE}
-         *
-         */
-        public int fileType = FTP.BINARY_FILE_TYPE;
-
-        @Override
-        protected FactoryConfig clone() {
-            try{
-                return (FactoryConfig)super.clone();
-            }
-            catch(Exception e){
-                throw new IllegalStateException(e);
-            }
-        }
     }
 }

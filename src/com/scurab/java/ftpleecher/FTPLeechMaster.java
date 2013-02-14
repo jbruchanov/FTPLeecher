@@ -1,7 +1,6 @@
 package com.scurab.java.ftpleecher;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 
 /**
@@ -11,15 +10,17 @@ import java.util.List;
  * Time: 20:35
  * To change this template use File | Settings | File Templates.
  */
-public class FTPLeechMaster implements FTPDownloadThread.FTPDownloadListener {
+public class FTPLeechMaster implements FTPDownloadListener {
 
-    private int mWorkingThreads = 4;
+    private int mWorkingThreads = 8;
 
     private static List<FTPDownloadThread> mQueue = new ArrayList<FTPDownloadThread>();
 
     private Thread mWorkingThread;
 
     private boolean mIsRunning = true;
+
+    private NotificationAdapter mAdapter;
 
     public FTPLeechMaster() {
         mWorkingThread = new Thread(new Runnable() {
@@ -64,14 +65,20 @@ public class FTPLeechMaster implements FTPDownloadThread.FTPDownloadListener {
         }
     }
 
-    public void enqueue(Collection<FTPDownloadThread> data) {
-        for (FTPDownloadThread t : data) {
-            t.setListener(this);
+    public void enqueue(DownloadTask task) {
+        int size = mQueue.size();
+        for (FTPDownloadThread t : task.getData()) {
+            t.registerListener(this);
+            t.setIndex(size);
+            size++;
         }
 
         synchronized (mQueue) {
-            mQueue.addAll(data);
+            mQueue.addAll(task.getData());
             mQueue.notifyAll();
+        }
+        if(mAdapter != null){
+            mAdapter.performNotifyDataChanged();
         }
     }
 
@@ -80,6 +87,9 @@ public class FTPLeechMaster implements FTPDownloadThread.FTPDownloadListener {
 //        synchronized (mQueue){
 //            mQueue.notifyAll();
 //        }
+        if(mAdapter != null){
+            mAdapter.performNotifyDataChanged(source);
+        }
     }
 
     @Override
@@ -87,11 +97,16 @@ public class FTPLeechMaster implements FTPDownloadThread.FTPDownloadListener {
         synchronized (mQueue) {
             mQueue.notifyAll();
         }
+        if(mAdapter != null){
+            mAdapter.performNotifyDataChanged(source);
+        }
     }
 
     @Override
     public void onDownloadProgress(FTPDownloadThread source, double down, double downPerSec) {
-        //To change body of implemented methods use File | Settings | File Templates.
+        if(mAdapter != null){
+            mAdapter.performNotifyDataChanged(source);
+        }
     }
 
     @Override
@@ -101,6 +116,9 @@ public class FTPLeechMaster implements FTPDownloadThread.FTPDownloadListener {
             synchronized (mQueue) {
                 mQueue.notifyAll();
             }
+        }
+        if(mAdapter != null){
+            mAdapter.performNotifyDataChanged(thread);
         }
     }
 
@@ -113,5 +131,17 @@ public class FTPLeechMaster implements FTPDownloadThread.FTPDownloadListener {
 
     public void stop() {
         mIsRunning = false;
+    }
+
+    public int size(){
+        return mQueue.size();
+    }
+
+    public FTPDownloadThread getItem(int index){
+        return mQueue.get(index);
+    }
+
+    public void setNotificationAdapter(NotificationAdapter adapter) {
+        mAdapter = adapter;
     }
 }

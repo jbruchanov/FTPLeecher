@@ -8,6 +8,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Created with IntelliJ IDEA.
@@ -18,40 +20,37 @@ import java.lang.reflect.Field;
  */
 public class FTPDownloadThread extends Thread implements Runnable, Cloneable {
 
-    /**
-     * Notification interface
-     */
-    public interface FTPDownloadListener{
-        void onError(FTPDownloadThread source, Exception e);
+    private int mIndex = -1;
 
-        void onFatalError(FTPDownloadThread source, FatalFTPException e);
+    private Object mLock = new Object();
 
-        void onDownloadProgress(FTPDownloadThread source, double down, double downPerSec);
-
-        void onStatusChange(FTPDownloadThread source, State state);
-    }
-
-    private final FTPFactory.FactoryConfig mConfig;
+    private final FactoryConfig mConfig;
 
     private final int mPart;
 
     private State mState;
 
-    private FTPDownloadListener mListener;
+    private List<FTPDownloadListener> mListeners = new ArrayList<FTPDownloadListener>();
+
+    private long mDownloaded;
+
+    private int mSpeed;
 
     public enum State{
-        Created, Connecting, Connected, Downloading, Error, WaitingForRetry, Finished
+        Created, Connecting, Connected, Downloading, Error, WaitingForRetry, Paused, Finished
     }
+
+    private volatile int mNotifiactionTime = 1000; //notify download progress after 1s
 
     /**
      * Use this constructor if download is not divided to parts
      * @param config
      */
-    protected FTPDownloadThread(FTPFactory.FactoryConfig config){
+    protected FTPDownloadThread(FactoryConfig config){
         this(config, -1);
     }
 
-    protected FTPDownloadThread(FTPFactory.FactoryConfig config, int part){
+    protected FTPDownloadThread(FactoryConfig config, int part){
         mConfig = config;
         mPart = part;
         setFtpState(State.Created);
@@ -69,6 +68,8 @@ public class FTPDownloadThread extends Thread implements Runnable, Cloneable {
 
     private void downloadImpl(){
         FTPClient ftpClient = null;
+        FileOutputStream fileOutputStream = null;
+        InputStream input = null;
         while(mState != State.Finished){
             try{
                 File f = getLocalFile();
@@ -89,11 +90,11 @@ public class FTPDownloadThread extends Thread implements Runnable, Cloneable {
                 ftpClient.setRestartOffset(startOffset);
 
                 //create streams
-                InputStream input = ftpClient.retrieveFileStream(mConfig.filename);
+                input = ftpClient.retrieveFileStream(mConfig.filename);
                 if(input == null || ftpClient.getReplyCode() >= 300){
                     throw new FatalFTPException(getFtpCodeName(ftpClient.getReplyCode()) + "\n" + ftpClient.getReplyString());
                 }
-                FileOutputStream fos = new FileOutputStream(f);
+                fileOutputStream = new FileOutputStream(f);
 
                 setFtpState(State.Downloading);
 
@@ -101,57 +102,58 @@ public class FTPDownloadThread extends Thread implements Runnable, Cloneable {
                 byte[] buffer = new byte[mConfig.bufferSize];
                 int len = 0;
 
-                long downloaded = alreadyDownloaded;
+                mDownloaded = alreadyDownloaded;
                 long downloadedInSec = 0;
 
                 long lastNotify = System.currentTimeMillis();
 
                 while((len = input.read(buffer)) != -1){
                     long now = System.currentTimeMillis();
-                    if(now - lastNotify > 1000){
-                        onDownloadProgress(downloaded, downloadedInSec);
+                    if(now - lastNotify > mNotifiactionTime){
+                        int v = (int)(downloadedInSec / (float)mNotifiactionTime) * 1000;
+                        onDownloadProgress(mDownloaded, v);
+                        mSpeed = v;
                         downloadedInSec = 0;
                     }
-                    final int subLen = (int)(mConfig.pieceLength - downloaded);
+                    final int subLen = (int)(mConfig.pieceLength - mDownloaded);
                     final int realLenToWrite = Math.min(len, subLen);
-                    fos.write(buffer, 0, realLenToWrite);
+                    fileOutputStream.write(buffer, 0, realLenToWrite);
 
                     //save values for notification
-                    downloaded += realLenToWrite;
+                    mDownloaded += realLenToWrite;
                     downloadedInSec += realLenToWrite;
 
-                    if(downloaded == mConfig.pieceLength){
+                    if(mDownloaded == mConfig.pieceLength){
                         //stop, we are complete
                         break;
                     }
+                    if(mState == State.Paused){
+                        synchronized (mLock){
+                            mLock.wait();
+                        }
+                    }
                 }
-
                 //close and finish
-                fos.close();
-                input.close();
                 ftpClient.disconnect();
                 setFtpState(State.Finished);
 
             }catch(FatalFTPException ffe){
                 onFatalError(ffe);
-                setFtpState(State.Error);
-                synchronized (this){
-//                    try {
-//                        wait();
-//                    } catch (InterruptedException e) {
-//
-//                    }
+                try {
+                    setFtpState(State.WaitingForRetry);
+                    Thread.sleep(10000);
+                } catch (InterruptedException e1) {
+                    //ingore wake
                 }
                 break;
             }catch(IOException e){
-                setFtpState(State.Error);
                 onError(e);
-//                try {
-//                    setFtpState(State.WaitingForRetry);
-//                    Thread.sleep(30000);
-//                } catch (InterruptedException e1) {
-//                    //ingore wake
-//                }
+                try {
+                    setFtpState(State.WaitingForRetry);
+                    Thread.sleep(10000);
+                } catch (InterruptedException e1) {
+                    //ingore wake
+                }
             }
             catch(Throwable t){
                 onFatalError(new FatalFTPException(t));
@@ -164,6 +166,18 @@ public class FTPDownloadThread extends Thread implements Runnable, Cloneable {
 //                    }
 //                }
 //                break;
+            }
+            finally {
+                //close and release everything
+                if(fileOutputStream != null){
+                    try{fileOutputStream.close();}catch (Exception e){/**/}
+                }
+                if(input != null){
+                    try{input.close();}catch (Exception e){/**/}
+                }
+                if(ftpClient != null){
+                    try{ftpClient.disconnect();}catch (Exception e){/**/}
+                }
             }
         }
     }
@@ -187,7 +201,7 @@ public class FTPDownloadThread extends Thread implements Runnable, Cloneable {
 
     /**
      * Pre init downloading
-     * @return length of already downloaded pice
+     * @return length of already mDownloaded pice
      * @throws FatalFTPException
      */
     private long onPreInit(File f) throws FatalFTPException {
@@ -229,24 +243,39 @@ public class FTPDownloadThread extends Thread implements Runnable, Cloneable {
 
     protected void setFtpState(State state){
         mState = state;
-        if(mListener != null){
-            mListener.onStatusChange(this, state);
+        synchronized (mListeners){
+            for(FTPDownloadListener l : mListeners){
+                l.onStatusChange(this, state);
+            }
         }
     }
 
-    public void setListener(FTPDownloadListener listener) {
-        mListener = listener;
+    public void registerListener(FTPDownloadListener listener) {
+        synchronized (mListeners){
+            mListeners.add(listener);
+        }
+    }
+
+    public void unregisterListener(FTPDownloadListener listener){
+        synchronized (mListeners){
+            mListeners.remove(listener);
+        }
     }
 
     //region Notification
     private void onFatalError(FatalFTPException ffe) {
-        if(mListener != null){
-            mListener.onFatalError(this, ffe);
+        synchronized (mListeners){
+            for(FTPDownloadListener l : mListeners){
+                l.onFatalError(this, ffe);
+            }
         }
     }
+
     private void onError(Exception e) {
-        if(mListener != null){
-            mListener.onError(this, e);
+        synchronized (mListeners){
+            for(FTPDownloadListener l : mListeners){
+                l.onError(this, e);
+            }
         }
     }
 
@@ -256,13 +285,15 @@ public class FTPDownloadThread extends Thread implements Runnable, Cloneable {
      * @param downloadedInSec fot last second
      */
     private void onDownloadProgress(long downloaded, long downloadedInSec) {
-        if(mListener != null){
-            mListener.onDownloadProgress(this, downloaded, downloadedInSec);
+        synchronized (mListeners){
+            for(FTPDownloadListener l : mListeners){
+                l.onDownloadProgress(this, downloaded, downloadedInSec);
+            }
         }
     }
     //endregion
 
-    public FTPFactory.FactoryConfig getConfig() {
+    public FactoryConfig getConfig() {
         return mConfig;
     }
 
@@ -273,5 +304,50 @@ public class FTPDownloadThread extends Thread implements Runnable, Cloneable {
 
     public int getPart() {
         return mPart;
+    }
+
+    public int getNotifiactionTime() {
+        return mNotifiactionTime;
+    }
+
+    /**
+     * Set notification time to call {@link FTPDownloadListener#onDownloadProgress(int, FTPDownloadThread, double, double)} }
+     * @param notifiactionTime min value is 1000 for 1s
+     */
+    public void setNotifiactionTime(int notifiactionTime) {
+        mNotifiactionTime = Math.max(1000, notifiactionTime);
+    }
+
+    public void setPause(boolean pause){
+        if(pause){
+            if(mState == State.Downloading){
+                synchronized (mLock){
+                    mState = State.Paused;
+                }
+            }
+        }else{
+            if(mState == State.Paused){
+                synchronized (mLock){
+                    mState = State.Downloading;
+                    mLock.notifyAll();
+                }
+            }
+        }
+    }
+
+    public int getIndex() {
+        return mIndex;
+    }
+
+    public void setIndex(int index) {
+        mIndex = index;
+    }
+
+    public long getDownloaded() {
+        return mDownloaded;
+    }
+
+    public int getSpeed() {
+        return mSpeed;
     }
 }

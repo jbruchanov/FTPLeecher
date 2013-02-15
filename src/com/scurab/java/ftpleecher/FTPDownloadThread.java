@@ -24,9 +24,7 @@ public class FTPDownloadThread extends Thread implements Runnable, Cloneable {
 
     private Object mLock = new Object();
 
-    private final FactoryConfig mConfig;
-
-    private final int mPart;
+    private final FTPContext mConfig;
 
     private State mState;
 
@@ -37,25 +35,17 @@ public class FTPDownloadThread extends Thread implements Runnable, Cloneable {
     private int mSpeed;
 
     public enum State{
-        Created, Connecting, Connected, Downloading, Error, WaitingForRetry, Paused, Finished
+        Created, Connecting, Connected, Downloading, Error, WaitingForRetry, Paused, Downloaded, Merging, Finished
     }
+    private Throwable mException;
 
-    private volatile int mNotifiactionTime = 1000; //notify download progress after 1s
+    private static final int NOTIFY = 1000; //notify download progress after 3s
 
-    /**
-     * Use this constructor if download is not divided to parts
-     * @param config
-     */
-    protected FTPDownloadThread(FactoryConfig config){
-        this(config, -1);
-    }
-
-    protected FTPDownloadThread(FactoryConfig config, int part){
+    protected FTPDownloadThread(FTPContext config){
         mConfig = config;
-        mPart = part;
         setFtpState(State.Created);
-        if(mPart == -1){
-            setName(String.format("%s %03d", mConfig.server, part));
+        if(config.parts > 1){
+            setName(String.format("%s %03d", mConfig.server, config.part));
         }else{
             setName(mConfig.server);
         }
@@ -70,12 +60,14 @@ public class FTPDownloadThread extends Thread implements Runnable, Cloneable {
         FTPClient ftpClient = null;
         FileOutputStream fileOutputStream = null;
         InputStream input = null;
-        while(mState != State.Finished){
+        while(!(mState == State.Downloaded || mState == State.Finished)){
             try{
                 File f = getLocalFile();
+                mConfig.localFile = f;
                 long alreadyDownloaded = onPreInit(f);
 
-                if(mState == State.Finished){
+                if(mState == State.Downloaded){
+                    setFtpState(mConfig.parts == 1 ? State.Finished : State.Downloaded);
                     break;
                 }
 
@@ -85,12 +77,11 @@ public class FTPDownloadThread extends Thread implements Runnable, Cloneable {
                 setFtpState(State.Connected);
 
                 //init start values
-                final long startOffset = (mPart * mConfig.pieceLength) + alreadyDownloaded;
-                final long toDownload = mConfig.pieceLength - alreadyDownloaded;
+                final long startOffset = (mConfig.part * mConfig.globalPieceLength) + alreadyDownloaded;
                 ftpClient.setRestartOffset(startOffset);
 
                 //create streams
-                input = ftpClient.retrieveFileStream(mConfig.filename);
+                input = ftpClient.retrieveFileStream(mConfig.remoteFullPath);
                 if(input == null || ftpClient.getReplyCode() >= 300){
                     throw new FatalFTPException(getFtpCodeName(ftpClient.getReplyCode()) + "\n" + ftpClient.getReplyString());
                 }
@@ -109,13 +100,14 @@ public class FTPDownloadThread extends Thread implements Runnable, Cloneable {
 
                 while((len = input.read(buffer)) != -1){
                     long now = System.currentTimeMillis();
-                    if(now - lastNotify > mNotifiactionTime){
-                        int v = (int)(downloadedInSec / (float)mNotifiactionTime) * 1000;
+                    if((now - lastNotify) > NOTIFY){
+                        int v = (int)(downloadedInSec / (float)NOTIFY) * 1000;
                         onDownloadProgress(mDownloaded, v);
                         mSpeed = v;
                         downloadedInSec = 0;
+                        lastNotify = now;
                     }
-                    final int subLen = (int)(mConfig.pieceLength - mDownloaded);
+                    final int subLen = (int)(mConfig.currentPieceLength - mDownloaded);
                     final int realLenToWrite = Math.min(len, subLen);
                     fileOutputStream.write(buffer, 0, realLenToWrite);
 
@@ -123,29 +115,36 @@ public class FTPDownloadThread extends Thread implements Runnable, Cloneable {
                     mDownloaded += realLenToWrite;
                     downloadedInSec += realLenToWrite;
 
-                    if(mDownloaded == mConfig.pieceLength){
+                    if(mDownloaded == mConfig.currentPieceLength){
                         //stop, we are complete
                         break;
                     }
-                    if(mState == State.Paused){
-                        synchronized (mLock){
-                            mLock.wait();
-                        }
+                }
+
+                if(mState == State.Paused){
+                    synchronized (mLock){
+                        mLock.wait();
                     }
                 }
+
                 //close and finish
                 ftpClient.disconnect();
-                setFtpState(State.Finished);
 
+                if(mConfig.currentPieceLength == mDownloaded){
+                    setFtpState(mConfig.parts == 1 ? State.Finished : State.Downloaded);
+                }//otherwise just restart process and again
             }catch(FatalFTPException ffe){
+                mException = ffe;
                 onFatalError(ffe);
-                try {
-                    setFtpState(State.WaitingForRetry);
-                    Thread.sleep(10000);
-                } catch (InterruptedException e1) {
-                    //ingore wake
+                setFtpState(State.Paused);
+                synchronized (mLock){
+                    try {
+                        mLock.wait();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
                 }
-                break;
+                mException = null;
             }catch(IOException e){
                 onError(e);
                 try {
@@ -156,16 +155,16 @@ public class FTPDownloadThread extends Thread implements Runnable, Cloneable {
                 }
             }
             catch(Throwable t){
+                mException = t;
                 onFatalError(new FatalFTPException(t));
                 setFtpState(State.Error);
-//                synchronized (this){
-//                    try {
-//                        wait();
-//                    } catch (InterruptedException e) {
-//
-//                    }
-//                }
-//                break;
+                synchronized (mLock){
+                    try {
+                        mLock.wait();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
             }
             finally {
                 //close and release everything
@@ -216,23 +215,32 @@ public class FTPDownloadThread extends Thread implements Runnable, Cloneable {
         }else{
             //we have something, so download it
             alreadyDownloaded = f.length();
-            if(alreadyDownloaded > mConfig.pieceLength){
+            if(alreadyDownloaded > mConfig.currentPieceLength){
                 throw new FatalFTPException("Already downloaded part is bigger then defined piece length!\nFile:"+ f.getAbsolutePath());
             }else{
-                setFtpState(State.Finished);
+                setFtpState(State.Downloaded);
             }
         }
         return alreadyDownloaded;
     }
 
-    private File getLocalFile(){
-        String[] urlParts = mConfig.filename.split("/");
+    /**
+     *
+     * @return
+     * @throws FatalFTPException if outputDirector cant be created
+     */
+    private File getLocalFile() throws FatalFTPException {
+        String[] urlParts = mConfig.remoteFullPath.split("/");
         String fileName = urlParts[urlParts.length-1];
         String localFile = null;
-        if(mPart == -1){
+        File folder = new File(mConfig.outputDirectory);
+        if(!folder.exists() && !folder.mkdir()){
+            throw new FatalFTPException("Unable to create folder:" + mConfig.outputDirectory);
+        }
+        if(mConfig.parts == 1){
             localFile = String.format(mConfig.localSingleFileTemplate, mConfig.outputDirectory, fileName);
         }else{
-            localFile = String.format(mConfig.localMultipleFilesTemplate, mConfig.outputDirectory, fileName, mPart);
+            localFile = String.format(mConfig.localMultipleFilesTemplate, mConfig.outputDirectory, fileName, mConfig.part);
         }
         return new File(localFile);
     }
@@ -243,6 +251,7 @@ public class FTPDownloadThread extends Thread implements Runnable, Cloneable {
 
     protected void setFtpState(State state){
         mState = state;
+        mSpeed = 0;
         synchronized (mListeners){
             for(FTPDownloadListener l : mListeners){
                 l.onStatusChange(this, state);
@@ -293,29 +302,17 @@ public class FTPDownloadThread extends Thread implements Runnable, Cloneable {
     }
     //endregion
 
-    public FactoryConfig getConfig() {
+    public FTPContext getContext() {
         return mConfig;
     }
 
     @Override
     protected FTPDownloadThread clone() throws CloneNotSupportedException {
-        return new FTPDownloadThread(mConfig, mPart);
+        return new FTPDownloadThread(mConfig);
     }
 
     public int getPart() {
-        return mPart;
-    }
-
-    public int getNotifiactionTime() {
-        return mNotifiactionTime;
-    }
-
-    /**
-     * Set notification time to call {@link FTPDownloadListener#onDownloadProgress(int, FTPDownloadThread, double, double)} }
-     * @param notifiactionTime min value is 1000 for 1s
-     */
-    public void setNotifiactionTime(int notifiactionTime) {
-        mNotifiactionTime = Math.max(1000, notifiactionTime);
+        return mConfig.part;
     }
 
     public void setPause(boolean pause){
@@ -333,6 +330,10 @@ public class FTPDownloadThread extends Thread implements Runnable, Cloneable {
                 }
             }
         }
+    }
+
+    public Throwable getException(){
+        return mException;
     }
 
     public int getIndex() {

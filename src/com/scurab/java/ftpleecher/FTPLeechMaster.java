@@ -12,7 +12,7 @@ import java.util.List;
  */
 public class FTPLeechMaster implements FTPDownloadListener {
 
-    private int mWorkingThreads = 8;
+    private int mWorkingThreads = 4;
 
     private static List<FTPDownloadThread> mQueue = new ArrayList<FTPDownloadThread>();
 
@@ -42,10 +42,10 @@ public class FTPLeechMaster implements FTPDownloadListener {
                             FTPDownloadThread thread = mQueue.get(i);
                             if (thread != null) {
                                 final FTPDownloadThread.State state = thread.getFtpState();
-                                if (state == FTPDownloadThread.State.Finished) {
-                                    continue;//nothing to dos
+                                if (state == FTPDownloadThread.State.Downloaded || state == FTPDownloadThread.State.Finished || state == FTPDownloadThread.State.Paused) {
+                                    continue;//nothing to do
                                 } else if (state == FTPDownloadThread.State.Created) {
-                                    System.out.println("Starting " + thread.getConfig().filename + " part: " + thread.getPart());
+                                    System.out.println("Starting " + thread.getContext().remoteFullPath + " part: " + thread.getPart());
                                     thread.start();
                                 }
                                 s++;
@@ -111,8 +111,8 @@ public class FTPLeechMaster implements FTPDownloadListener {
 
     @Override
     public void onStatusChange(FTPDownloadThread thread, FTPDownloadThread.State state) {
-        if (state == FTPDownloadThread.State.Finished) {
-            System.out.println("Finished " + thread.getConfig().filename + " part: " + thread.getPart());
+        if (state == FTPDownloadThread.State.Downloaded) {
+            System.out.println("Downloaded " + thread.getContext().remoteFullPath + " part: " + thread.getPart());
             synchronized (mQueue) {
                 mQueue.notifyAll();
             }

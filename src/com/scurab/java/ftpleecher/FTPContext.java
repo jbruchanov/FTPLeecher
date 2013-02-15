@@ -2,6 +2,8 @@ package com.scurab.java.ftpleecher;
 
 import org.apache.commons.net.ftp.FTP;
 
+import java.io.File;
+
 /**
  * Created with IntelliJ IDEA.
  * User: Joe Scurab
@@ -9,43 +11,38 @@ import org.apache.commons.net.ftp.FTP;
  * Time: 22:56
  * To change this template use File | Settings | File Templates.
  */
-public class FactoryConfig implements Cloneable
+public class FTPContext  extends FTPConnection implements Cloneable
 {
-    /**
-     * server address
-     * <code>ftp.linux.com</code>
-     */
-    public String server;
+    public FTPContext(){}
+
+    public FTPContext(FTPConnection fc) {
+        server  = fc.server;
+        port = fc.port;
+        username = fc.username;
+        passive = fc.passive;
+        password = fc.password;
+        fileType = fc.fileType;
+    }
 
     /**
-     * port for ftp server, default is 21
-     */
-    public int port = 21;
-
-    /**
-     * Optional value for username<br/>
-     * If set, password must be set aswell
-     */
-    public String username;
-
-    /**
-     * Optional value for password<br/>
-     * If set, username must be ser asweel;
-     */
-    public String password;
-
-    /**
-     * Remote filename to download<br/>
+     * Remote file to download<br/>
      * Must be defined full path
      * <code>/folder1/folder2/kernel.img</code>
      */
-    public String filename;
+    public String remoteFullPath;
 
     /**
      * Define length of one particular piece of downloading in bytes.<br/>
      * Default value is 15MB
      */
-    public int pieceLength = 15000000;
+
+    public int globalPieceLength = 15000000;
+
+
+    /**
+     * Counted size of this particular piece
+     */
+    public int currentPieceLength = 0;
 
     /**
      * Define output directory for temp files
@@ -57,7 +54,6 @@ public class FactoryConfig implements Cloneable
      * If false, part will be deleted and completely re-downloaded if there will be any download problem.
      */
     public boolean resume = false;
-
 
     /**
      * Define buffer size for ftp downloading<br/>
@@ -78,21 +74,35 @@ public class FactoryConfig implements Cloneable
     public String localSingleFileTemplate = "%s/%s";
 
     /**
-     * Set connection mode
+     * Local file name
      */
-    public boolean passive = true;
+    public File localFile;
 
     /**
-     * Set download mode for file<br/>
-     * {@link org.apache.commons.net.ftp.FTP#BINARY_FILE_TYPE}, {@link org.apache.commons.net.ftp.FTP#ASCII_FILE_TYPE}
-     *
+     * Original filename on FTP server
      */
-    public int fileType = FTP.BINARY_FILE_TYPE;
+    public String fileName;
+
+    /**
+     * Flag for making common groups of threads
+     */
+    public long groupId;
+
+
+    /**
+     * Part number
+     */
+    public int part = 0;
+
+    /**
+     * Complete number of parts
+     */
+    public int parts = 1;
 
     @Override
-    public FactoryConfig clone() {
+    public FTPContext clone() {
         try{
-            return (FactoryConfig)super.clone();
+            return (FTPContext)super.clone();
         }
         catch(Exception e){
             throw new IllegalStateException(e);

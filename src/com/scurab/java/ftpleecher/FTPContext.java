@@ -1,22 +1,17 @@
 package com.scurab.java.ftpleecher;
 
-import org.apache.commons.net.ftp.FTP;
-
 import java.io.File;
 
 /**
- * Created with IntelliJ IDEA.
- * User: Joe Scurab
- * Date: 13.2.13
- * Time: 22:56
- * To change this template use File | Settings | File Templates.
+ * Base general context for each downloading thread<br/>
+ * Every object should be unique per thread
  */
-public class FTPContext  extends FTPConnection implements Cloneable
-{
-    public FTPContext(){}
+public class FTPContext extends FTPConnection implements Cloneable {
+    public FTPContext() {
+    }
 
     public FTPContext(FTPConnection fc) {
-        server  = fc.server;
+        server = fc.server;
         port = fc.port;
         username = fc.username;
         passive = fc.passive;
@@ -38,7 +33,6 @@ public class FTPContext  extends FTPConnection implements Cloneable
 
     public int globalPieceLength = 15000000;
 
-
     /**
      * Counted size of this particular piece
      */
@@ -59,7 +53,7 @@ public class FTPContext  extends FTPConnection implements Cloneable
      * Define buffer size for ftp downloading<br/>
      * Default value is 64KiB
      */
-    public int bufferSize = 64*1024;
+    public int bufferSize = 64 * 1024;
 
     /**
      * local file template for {@link String#format(String, Object...)}<br/>
@@ -88,7 +82,6 @@ public class FTPContext  extends FTPConnection implements Cloneable
      */
     public long groupId;
 
-
     /**
      * Part number
      */
@@ -101,10 +94,9 @@ public class FTPContext  extends FTPConnection implements Cloneable
 
     @Override
     public FTPContext clone() {
-        try{
-            return (FTPContext)super.clone();
-        }
-        catch(Exception e){
+        try {
+            return (FTPContext) super.clone();
+        } catch (Exception e) {
             throw new IllegalStateException(e);
         }
     }

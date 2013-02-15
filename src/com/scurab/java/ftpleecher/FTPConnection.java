@@ -3,11 +3,7 @@ package com.scurab.java.ftpleecher;
 import org.apache.commons.net.ftp.FTP;
 
 /**
- * Created with IntelliJ IDEA.
- * User: Joe Scurab
- * Date: 14.2.13
- * Time: 21:25
- * To change this template use File | Settings | File Templates.
+ * Simple container for ftp connection info
  */
 public class FTPConnection {
 
@@ -30,7 +26,7 @@ public class FTPConnection {
 
     /**
      * Optional value for password<br/>
-     * If set, username must be ser asweel;
+     * If set, username must be ser as well;
      */
     public String password;
 
@@ -42,7 +38,6 @@ public class FTPConnection {
     /**
      * Set download mode for file<br/>
      * {@link org.apache.commons.net.ftp.FTP#BINARY_FILE_TYPE}, {@link org.apache.commons.net.ftp.FTP#ASCII_FILE_TYPE}
-     *
      */
     public int fileType = FTP.BINARY_FILE_TYPE;
 

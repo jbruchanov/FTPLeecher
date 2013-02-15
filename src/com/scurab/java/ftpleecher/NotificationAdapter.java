@@ -1,15 +1,16 @@
 package com.scurab.java.ftpleecher;
 
-/**
- * Created with IntelliJ IDEA.
- * User: Joe Scurab
- * Date: 13.2.13
- * Time: 23:20
- * To change this template use File | Settings | File Templates.
- */
-public interface NotificationAdapter extends FTPDownloadListener{
+public interface NotificationAdapter extends FTPDownloadListener {
 
+    /**
+     * Called if there is any bigger change of queue
+     */
     void performNotifyDataChanged();
 
+    /**
+     * Called where is change only for one particular thread, ig. change of state
+     *
+     * @param thread
+     */
     void performNotifyDataChanged(FTPDownloadThread thread);
 }

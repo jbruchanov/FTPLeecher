@@ -9,7 +9,7 @@ package com.scurab.java.ftpleecher.tools;
  */
 public class TextUtils {
 
-    public static boolean isNullOrEmpty(String v){
+    public static boolean isNullOrEmpty(String v) {
         return v == null || v.length() == 0;
     }
 }

@@ -9,11 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Created with IntelliJ IDEA.
- * User: Joe Scurab
- * Date: 11.2.13
- * Time: 20:34
- * To change this template use File | Settings | File Templates.
+ * Factory for creating {@link DownloadTask} objects
  */
 public class FTPFactory {
 
@@ -23,14 +19,13 @@ public class FTPFactory {
 
     private static final String FTP_SEPARATOR = "/";
 
-    public FTPFactory(FTPContext config){
+    public FTPFactory(FTPContext config) {
         checkConfig(config);
         mConfig = config.clone();
-
         mFolderSeparator = System.getProperty("file.separator");
     }
 
-    private void checkConfig(FTPContext config){
+    private void checkConfig(FTPContext config) {
         if (config.username == null && config.password != null
                 || config.username != null && config.password == null) {
             throw new IllegalArgumentException("Username or password is null!");
@@ -39,6 +34,7 @@ public class FTPFactory {
 
     /**
      * Creates collection of download threads
+     *
      * @return
      * @throws IOException
      * @throws FatalFTPException
@@ -50,26 +46,32 @@ public class FTPFactory {
         FTPFile[] files = fc.listFiles(fullpath);
 
         List<FTPDownloadThread> result = new ArrayList<FTPDownloadThread>();
-        if(result == null){
+        if (result == null) {
             throw new IllegalArgumentException("FTP item not found, path:" + fullpath);
-        }else{
-            if(files.length == 1){ //it's file
+        } else {
+            //it's file
+            if (files.length == 1) {
                 FTPFile file = files[0];
                 FTPContext newCfg = mConfig.clone();
                 newCfg.remoteFullPath = fullpath;
                 newCfg.fileName = file.getName();
                 newCfg.groupId = System.currentTimeMillis();
                 result.addAll(createThreadsForFile(newCfg, file));
-            }else if(files.length > 1){//it was folder and we got content of this folder
+            } else if (files.length > 1) {
+                //it was folder and we got content of this folder
+                //update downloadTo folder
                 downloadTo = createFolderIfNeccessary(downloadTo + mFolderSeparator + fullpath.replace(FTP_SEPARATOR, mFolderSeparator));
                 mConfig.outputDirectory = downloadTo;
-                for(FTPFile file : files){
+
+                for (FTPFile file : files) {
                     FTPContext newCfg = mConfig.clone();
                     newCfg.groupId = System.currentTimeMillis();
-                    newCfg.remoteFullPath = fullpath + FTP_SEPARATOR + file.getName(); //update fullpath
-                    if(file.isFile()){
+                    //update fullpath
+                    newCfg.remoteFullPath = fullpath + FTP_SEPARATOR + file.getName();
+
+                    if (file.isFile()) {
                         result.addAll(createThreadsForFile(newCfg, file));
-                    }else{
+                    } else {
                         newCfg.outputDirectory += mFolderSeparator + file.getName();
                         result.addAll(createThreadsForDirectory(newCfg, fc, file));
                     }
@@ -78,38 +80,37 @@ public class FTPFactory {
         }
 
 
-        DownloadTask task = new DownloadTask(fullpath, result);
+        DownloadTask task = new DownloadTask(result);
         return task;
     }
 
     private String createFolderIfNeccessary(String folder) throws FatalFTPException {
         File f = new File(folder);
-        if(!f.exists() && !f.mkdir()){
+        if (!f.exists() && !f.mkdir()) {
             throw new FatalFTPException("Unable to create folder " + folder);
         }
         return f.getAbsolutePath();
     }
 
     /**
-     *
      * @param config always put clone, because values are changed in this method
      * @param file
      * @return
      */
-    private List<FTPDownloadThread> createThreadsForFile(final FTPContext config, final FTPFile file){
-        long size = file.getSize();
+    private List<FTPDownloadThread> createThreadsForFile(final FTPContext config, final FTPFile file) {
+        List<FTPDownloadThread> result = new ArrayList<FTPDownloadThread>();
 
-        final int parts = (int)Math.ceil((size / (double)config.globalPieceLength));
+        long size = file.getSize();
+        final int parts = (int) Math.ceil((size / (double) config.globalPieceLength));
+
         config.parts = parts;
         config.fileName = file.getName();
 
-        List<FTPDownloadThread> result = new ArrayList<FTPDownloadThread>();
-
-        if(!config.remoteFullPath.endsWith(file.getName())){
+        if (!config.remoteFullPath.endsWith(file.getName())) {
             config.remoteFullPath = config.remoteFullPath + (config.remoteFullPath.endsWith(FTP_SEPARATOR) ? "" : FTP_SEPARATOR) + file.getName();
         }
 
-        if(parts > 1){
+        if (parts > 1) {
             for (int i = 0, n = parts - 1; i < n; i++) {//last one has diff pieceLen
                 FTPContext fc = config.clone();
                 fc.part = i;
@@ -118,12 +119,12 @@ public class FTPFactory {
             }
             //update lastone
             FTPContext fc = config.clone();
-            fc.currentPieceLength = (int)(size - ((parts-1)*(double)config.globalPieceLength));
-            fc.part = fc.parts-1;
+            fc.currentPieceLength = (int) (size - ((parts - 1) * (double) config.globalPieceLength));
+            fc.part = fc.parts - 1;
             result.add(new FTPDownloadThread(fc));
-        }else{
+        } else {
             //clone created in parent method
-            config.currentPieceLength = (int)size;
+            config.currentPieceLength = (int) size;
             result.add(new FTPDownloadThread(config));
         }
 
@@ -133,14 +134,16 @@ public class FTPFactory {
     private List<FTPDownloadThread> createThreadsForDirectory(final FTPContext config, final FTPClient fclient, final FTPFile file) throws IOException {
         FTPFile[] files = fclient.listFiles(config.remoteFullPath);
         List<FTPDownloadThread> result = new ArrayList<FTPDownloadThread>();
-        for(FTPFile f : files){
+
+        for (FTPFile f : files) {
+
             FTPContext newCfg = config.clone();
             newCfg.groupId = System.currentTimeMillis();
-            if(f.isFile()){
-                newCfg.remoteFullPath += FTP_SEPARATOR + f.getName(); //update fullpath
+            newCfg.remoteFullPath += FTP_SEPARATOR + f.getName();
+
+            if (f.isFile()) {
                 result.addAll(createThreadsForFile(config, f));
-            }else{
-                newCfg.remoteFullPath += FTP_SEPARATOR+ f.getName(); //update fullpath + (config.remoteFullPath.endsWith("/") ? "" : "/") + f.getName();
+            } else {
                 newCfg.outputDirectory += mFolderSeparator + f.getName();
                 result.addAll(createThreadsForDirectory(newCfg, fclient, f));
             }
@@ -149,7 +152,8 @@ public class FTPFactory {
     }
 
     /**
-     * Open ftp connection based on {@link FTPContext}
+     * Open ftp connection based on {@link FTPConnection}
+     *
      * @param config
      * @return
      * @throws IOException
@@ -157,26 +161,23 @@ public class FTPFactory {
     public static FTPClient openFtpClient(FTPConnection config) throws IOException, FatalFTPException {
         FTPClient fc = new FTPClient();
 
-
-
         fc.connect(config.server, config.port);
-        if(config.username != null){
+        if (config.username != null) {
             fc.login(config.username, config.password);
         }
 
-        if(config.passive){
+        if (config.passive) {
             fc.enterLocalPassiveMode();
-        }else{
+        } else {
             fc.enterLocalActiveMode();
         }
 
         fc.setControlKeepAliveTimeout(60);
-
         fc.setSoTimeout(2000);
         fc.setDataTimeout(2000);
 
-        if(!fc.setFileType(config.fileType)){
-            throw new FatalFTPException("Unable to set file type:"+ config.fileType);
+        if (!fc.setFileType(config.fileType)) {
+            throw new FatalFTPException("Unable to set file type:" + config.fileType);
         }
         return fc;
     }

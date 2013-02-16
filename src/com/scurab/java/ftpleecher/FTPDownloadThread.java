@@ -111,7 +111,7 @@ public class FTPDownloadThread implements Runnable, Cloneable {
         synchronized(this){
             mWorkingThread = null;
         }
-        if(!(mState == State.Downloaded || mState == State.Finished)){
+        if(!(mState == State.Downloaded || mState == State.Finished || mState == State.Error)){
             mException = new Exception("WTF_ERROR Unexpected Leaving downloading process! State:" + mState + ", try restart this thread");
             mState = State.Error;
         }
@@ -214,17 +214,10 @@ public class FTPDownloadThread implements Runnable, Cloneable {
 
             } catch (FatalFTPException ffe) {
                 mException = ffe;
+                ffe.printStackTrace();
                 onFatalError(ffe);
-                setFtpState(State.Paused);
-                synchronized (mLock) {
-                    try {
-                        mLock.wait();
-                        setFtpState(State.Downloading);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                }
-                mException = null;
+                setFtpState(State.Error);
+                return;
             } catch (IOException e) {
                 onError(e);
                 setFtpState(State.WaitingForRetry);

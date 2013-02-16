@@ -6,18 +6,59 @@ import java.io.File;
  * Base general context for each downloading thread<br/>
  * Every object should be unique per thread
  */
-public class FTPContext extends FTPConnection implements Cloneable {
+public class FTPContext extends FTPSettings implements Cloneable {
     public FTPContext() {
     }
 
     public FTPContext(FTPConnection fc) {
+        setConnection(fc);
+    }
+
+    public FTPContext setConnection(FTPConnection fc){
         server = fc.server;
         port = fc.port;
         username = fc.username;
         passive = fc.passive;
         password = fc.password;
         fileType = fc.fileType;
+        return this;
     }
+
+    public FTPContext setSettings(FTPSettings fs){
+        globalPieceLength = fs.globalPieceLength;
+        resume = fs.resume;
+        bufferSize = fs.bufferSize;
+        fileType = fs.fileType;
+        return this;
+    }
+
+    /**
+     * server address
+     * <code>ftp.linux.com</code>
+     */
+    public String server;
+
+    /**
+     * port for ftp server, default is 21
+     */
+    public int port = 21;
+
+    /**
+     * Optional value for username<br/>
+     * If set, password must be set aswell
+     */
+    public String username;
+
+    /**
+     * Optional value for password<br/>
+     * If set, username must be ser as well;
+     */
+    public String password;
+
+    /**
+     * Set connection mode
+     */
+    public boolean passive = true;
 
     /**
      * Remote file to download<br/>
@@ -25,13 +66,6 @@ public class FTPContext extends FTPConnection implements Cloneable {
      * <code>/folder1/folder2/kernel.img</code>
      */
     public String remoteFullPath;
-
-    /**
-     * Define length of one particular piece of downloading in bytes.<br/>
-     * Default value is 15MB
-     */
-
-    public int globalPieceLength = 15000000;
 
     /**
      * Counted size of this particular piece
@@ -42,18 +76,6 @@ public class FTPContext extends FTPConnection implements Cloneable {
      * Define output directory for temp files
      */
     public String outputDirectory;
-
-    /**
-     * Allow resuming of downloading parts.<br/>
-     * If false, part will be deleted and completely re-downloaded if there will be any download problem.
-     */
-    public boolean resume = false;
-
-    /**
-     * Define buffer size for ftp downloading<br/>
-     * Default value is 64KiB
-     */
-    public int bufferSize = 64 * 1024;
 
     /**
      * local file template for {@link String#format(String, Object...)}<br/>

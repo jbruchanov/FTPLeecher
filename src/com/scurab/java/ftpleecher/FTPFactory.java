@@ -159,14 +159,22 @@ public class FTPFactory {
      * @throws IOException
      */
     public static FTPClient openFtpClient(FTPConnection config) throws IOException, FatalFTPException {
+        return openFtpClient(config.server, config.port, config.username, config.password, config.passive, config.fileType);
+    }
+
+    public static FTPClient openFtpClient(FTPContext context) throws IOException, FatalFTPException {
+        return openFtpClient(context.server, context.port, context.username, context.password, context.passive, context.fileType);
+    }
+
+    private static FTPClient openFtpClient(String server, int port, String user, String pass, boolean passive, int fileType) throws IOException, FatalFTPException {
         FTPClient fc = new FTPClient();
 
-        fc.connect(config.server, config.port);
-        if (config.username != null) {
-            fc.login(config.username, config.password);
+        fc.connect(server, port);
+        if (user != null) {
+            fc.login(user, pass);
         }
 
-        if (config.passive) {
+        if (passive) {
             fc.enterLocalPassiveMode();
         } else {
             fc.enterLocalActiveMode();
@@ -176,8 +184,8 @@ public class FTPFactory {
         fc.setSoTimeout(2000);
         fc.setDataTimeout(2000);
 
-        if (!fc.setFileType(config.fileType)) {
-            throw new FatalFTPException("Unable to set file type:" + config.fileType);
+        if (!fc.setFileType(fileType)) {
+            throw new FatalFTPException("Unable to set file type:" + fileType);
         }
         return fc;
     }

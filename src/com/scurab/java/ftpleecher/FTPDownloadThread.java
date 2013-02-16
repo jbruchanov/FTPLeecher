@@ -105,13 +105,14 @@ public class FTPDownloadThread implements Runnable, Cloneable {
     @Override
     public void run() {
         //don't inform about this state, it's just flag that thread is already running
+        mException = null;
         mState = State.Started;
         downloadImpl();
         synchronized(this){
             mWorkingThread = null;
         }
         if(!(mState == State.Downloaded || mState == State.Finished)){
-            mException = new Exception("Unexpected Leaving downloading process wtf?!, try restart of thread");
+            mException = new Exception("WTF_ERROR Unexpected Leaving downloading process! State:" + mState + ", try restart this thread");
             mState = State.Error;
         }
     }

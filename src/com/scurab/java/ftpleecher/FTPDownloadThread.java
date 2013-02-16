@@ -1,5 +1,6 @@
 package com.scurab.java.ftpleecher;
 
+import com.scurab.java.ftpleecher.tools.TextUtils;
 import org.apache.commons.net.ftp.FTPClient;
 import org.apache.commons.net.ftp.FTPReply;
 
@@ -148,7 +149,7 @@ public class FTPDownloadThread implements Runnable, Cloneable {
                 //create streams
                 input = ftpClient.retrieveFileStream(mConfig.remoteFullPath);
                 if (input == null || ftpClient.getReplyCode() >= 300) {
-                    throw new FatalFTPException(getFtpCodeName(ftpClient.getReplyCode()) + "\n" + ftpClient.getReplyString());
+                    throw new FatalFTPException(TextUtils.getFtpCodeName(ftpClient.getReplyCode()) + "\n" + ftpClient.getReplyString());
                 }
                 fileOutputStream = new FileOutputStream(f, startOffset > 0);
 
@@ -259,29 +260,6 @@ public class FTPDownloadThread implements Runnable, Cloneable {
                 //endregion
             }
         }
-    }
-
-    /**
-     * Help method for translating number ftp codes to readable string<br/>
-     * Uses reflection
-     *
-     * @param value
-     * @return
-     */
-    private String getFtpCodeName(int value) {
-        Field[] fields = FTPReply.class.getDeclaredFields();
-        for (Field f : fields) {
-            if (f.getType() == int.class) {
-                try {
-                    if (value == f.getInt(null)) {
-                        return f.getName();
-                    }
-                } catch (IllegalAccessException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-        return "";
     }
 
     /**

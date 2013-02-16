@@ -1,5 +1,6 @@
 package com.scurab.java.ftpleecher;
 
+import com.scurab.java.ftpleecher.tools.TextUtils;
 import org.apache.commons.net.ftp.FTPClient;
 import org.apache.commons.net.ftp.FTPFile;
 
@@ -170,8 +171,12 @@ public class FTPFactory {
         FTPClient fc = new FTPClient();
 
         fc.connect(server, port);
+
         if (user != null) {
-            fc.login(user, pass);
+            boolean succ = fc.login(user, pass);
+            if(!succ || fc.getReplyCode() >= 300) {
+                throw new FatalFTPException(TextUtils.getFtpCodeName(fc.getReplyCode()) + "\n" + fc.getReplyString());
+            }
         }
 
         if (passive) {

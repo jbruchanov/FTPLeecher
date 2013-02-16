@@ -41,4 +41,9 @@ public class FTPConnection {
      */
     public int fileType = FTP.BINARY_FILE_TYPE;
 
+
+    @Override
+    public String toString() {
+        return String.format("%s@%s:%s", username, server, port);
+    }
 }

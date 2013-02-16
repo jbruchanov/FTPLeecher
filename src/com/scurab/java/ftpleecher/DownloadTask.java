@@ -118,6 +118,9 @@ public class DownloadTask implements FTPDownloadListener {
 
     public void onMergeFiles() {
         HashMap<Long, FTPDownloadThread[]> subGroups = getSubGroups();
+        if(subGroups == null){
+            return;
+        }
         for (Long l : subGroups.keySet()) {
             try {
                 FTPDownloadThread[] arr = subGroups.get(l);

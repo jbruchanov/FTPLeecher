@@ -3,3 +3,4 @@
 out
 *.iml
 /test/MainTest.java
+/src/META-INF/MANIFEST.MF

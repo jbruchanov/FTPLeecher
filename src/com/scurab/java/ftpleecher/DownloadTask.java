@@ -13,8 +13,14 @@ import java.util.*;
  */
 public class DownloadTask implements FTPDownloadListener {
 
+    /**
+     * collections where are all working threads *
+     */
     private List<FTPDownloadThread> mData;
 
+    /**
+     * collection of active working threads *
+     */
     private List<FTPDownloadThread> mWorkingThreads;
 
     public DownloadTask(Collection<FTPDownloadThread> data) {
@@ -26,6 +32,7 @@ public class DownloadTask implements FTPDownloadListener {
     private void bind() {
         for (FTPDownloadThread t : mData) {
             t.registerListener(this);
+            t.setParentTask(this);
         }
     }
 
@@ -45,53 +52,77 @@ public class DownloadTask implements FTPDownloadListener {
 
     @Override
     public void onStatusChange(FTPDownloadThread source, FTPDownloadThread.State state) {
-        //ignore these states, becuase are set from this class
-        if (state == FTPDownloadThread.State.Merging) {
-            return;
-        } else if (state == FTPDownloadThread.State.Finished) {
-            synchronized (mWorkingThreads) {
-                mWorkingThreads.remove(source);
-            }
-        }
-
-        boolean merge = false;
-        if (state == FTPDownloadThread.State.Downloaded) {
-            synchronized (mWorkingThreads) {
-                if (!mWorkingThreads.remove(source)) {
-                    System.err.println("This thread is not from this task!" + source.getContext().toString());
-                }
-                merge = mWorkingThreads.size() == 0 && mData.size() > 1;
-            }
-        }
-
-        //we are done in this task, now is time to merge
-        if (merge) {
-            //must be called in diff thread to let finish current downloading thread
-            Thread t = new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    //wait for sec to finish last thread
-                    try {
-                        Thread.sleep(1000);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                    onMergeFiles();
-                }
-            });
-            t.setName("MergeThread");
-            t.start();
-        }
+        performStatusChange(source, state);
     }
 
     //endregion notification
+
+    private void performStatusChange(final FTPDownloadThread source, final FTPDownloadThread.State state) {
+        final boolean finished = (state == FTPDownloadThread.State.Finished);
+        boolean merge = false;
+
+        //ignore these states, because they are set from this class
+        if (state != FTPDownloadThread.State.Merging) {
+            if (finished) {
+                synchronized (mWorkingThreads) {
+                    mWorkingThreads.remove(source);
+                }
+                //finished is called here or in download thread if not separated and file with same size is found
+                //on local drive
+            } else {
+                synchronized (mWorkingThreads) {
+                    if (source.getParentTask() != this) {
+                        System.err.println("This thread is not from this task!" + source.getContext().toString());
+                        return;
+                    } else {
+                        if (state == FTPDownloadThread.State.Downloaded) {
+                            mWorkingThreads.remove(source);
+                        } else {
+                            if (!mWorkingThreads.contains(source)) {
+                                //can be restarted, finished are handled before
+                                mWorkingThreads.add(source);
+                            }
+                        }
+                    }
+                }
+            }
+            merge = mWorkingThreads.size() == 0 && mData.size() > 1;
+            //we are done in this task, now is time to merge
+            if (merge) {
+                //must be called in diff thread to let finish current downloading thread
+                performMerge();
+            }
+        }
+    }
+
+    private void performMerge() {
+        Thread t = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                    /*
+                     * wait for sec to finish last thread
+                     */
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                onMergeFiles();
+            }
+        });
+        t.setName("MergeThread");
+        t.start();
+    }
 
     public void onMergeFiles() {
         HashMap<Long, FTPDownloadThread[]> subGroups = getSubGroups();
         for (Long l : subGroups.keySet()) {
             try {
                 FTPDownloadThread[] arr = subGroups.get(l);
-                mergeFiles(arr);
+                //if it's null it's still not ready
+                if (arr != null) {
+                    mergeFiles(arr);
+                }
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -107,22 +138,32 @@ public class DownloadTask implements FTPDownloadListener {
     private void mergeFiles(FTPDownloadThread[] parts) throws Exception {
         final String sep = System.getProperty("file.separator");
         FTPContext context = parts[0].getContext();
+
+        //create output file and rename it if exists
         File outputFile = new File(context.outputDirectory + sep + context.fileName);
         if (outputFile.exists()) {
             outputFile.renameTo(new File(context.outputDirectory + sep + context.fileName + ".old" + System.currentTimeMillis()));
         }
+
+        //final output stream
         FileOutputStream fos = new FileOutputStream(outputFile);
         for (int i = 0, n = parts.length; i < n; i++) {
             FTPDownloadThread thread = parts[i];
             try {
+                //set state
                 thread.setFtpState(FTPDownloadThread.State.Merging);
                 context = thread.getContext();
+
+                //region copy
                 FileInputStream fis = new FileInputStream(context.localFile);
                 int copied = IOUtils.copy(fis, fos);
                 if (context.currentPieceLength != copied) {
                     System.err.println(String.format("Copied:%s, Should be:%s", copied, context.currentPieceLength));
                 }
                 fis.close();
+                //end region
+
+                //set final state
                 thread.setFtpState(FTPDownloadThread.State.Finished);
             } catch (Exception e) {
                 thread.setFtpState(FTPDownloadThread.State.Error);
@@ -133,7 +174,6 @@ public class DownloadTask implements FTPDownloadListener {
             fos.close();
         } catch (Exception e) {
             e.printStackTrace();
-            ;
         }
     }
 
@@ -145,9 +185,12 @@ public class DownloadTask implements FTPDownloadListener {
     private HashMap<Long, FTPDownloadThread[]> getSubGroups() {
         boolean someNotFinished = false;
         HashMap<Long, FTPDownloadThread[]> result = new HashMap<Long, FTPDownloadThread[]>();
+
         for (FTPDownloadThread ft : mData) {
             FTPContext c = ft.getContext();
+            //ignore files which are not separated
             if (c.parts > 1) {
+
                 FTPDownloadThread[] arr = result.get(c.groupId);
                 if (arr == null) {
                     arr = new FTPDownloadThread[c.parts];
@@ -157,10 +200,9 @@ public class DownloadTask implements FTPDownloadListener {
                 someNotFinished |= ft.getFtpState() != FTPDownloadThread.State.Downloaded;
             }
         }
-
-        //TODO:this is strange, we have something not downloaded yet, maybe restart?
+        //this can happend for example if someone restarted download in the middle of checking
         if (someNotFinished) {
-            //FIXME:
+            return null;
         }
         return result;
     }

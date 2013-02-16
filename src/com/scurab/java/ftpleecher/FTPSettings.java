@@ -22,7 +22,7 @@ public class FTPSettings {
      * Allow resuming of downloading parts.<br/>
      * If false, part will be deleted and completely re-downloaded if there will be any download problem.
      */
-    public boolean resume = false;
+    public boolean resume = true;
 
     /**
      * Define buffer size for ftp downloading<br/>

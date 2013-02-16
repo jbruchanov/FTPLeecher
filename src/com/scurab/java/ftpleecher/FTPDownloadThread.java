@@ -53,11 +53,13 @@ public class FTPDownloadThread extends Thread implements Runnable, Cloneable {
      */
     private Throwable mException;
 
+    private DownloadTask mParentTask;
+
     /**
      * Base thread states *
      */
     public enum State {
-        Created, Connecting, Connected, Downloading, Error, WaitingForRetry, Paused, Downloaded, Merging, Finished;
+        Created, Started,  Connecting, Connected, Downloading, Error, WaitingForRetry, Paused, Downloaded, Merging, Finished;
     }
 
     protected FTPDownloadThread(FTPContext config) {
@@ -69,14 +71,16 @@ public class FTPDownloadThread extends Thread implements Runnable, Cloneable {
         setFtpState(State.Created);
 
         if (config.parts > 1) {
-            setName(String.format("%s %03d", mConfig.server, config.part));
+            setName(String.format("%s %03d", mConfig.fileName, config.part));
         } else {
-            setName(mConfig.server);
+            setName(mConfig.fileName);
         }
     }
 
     @Override
     public void run() {
+        //don't inform about this state, it's just flag that thread is already running
+        mState = State.Started;
         downloadImpl();
     }
 
@@ -87,15 +91,14 @@ public class FTPDownloadThread extends Thread implements Runnable, Cloneable {
         FTPClient ftpClient = null;
         FileOutputStream fileOutputStream = null;
         InputStream input = null;
-        while (!(mState == State.Downloaded || mState == State.Finished)) {
+        while (!StateHelper.isActive(mState)) {
             try {
                 File f = getLocalFile();
                 mConfig.localFile = f;
                 long alreadyDownloaded = onPreInit(f);
 
                 //state can be set in getLocalFile when pieceLen and fileSize are same
-                if (mState == State.Downloaded) {
-                    setFtpState(mConfig.parts == 1 ? State.Finished : State.Downloaded);
+                if (mState == State.Downloaded || mState == State.Finished) {
                     break;
                 }
 
@@ -260,9 +263,9 @@ public class FTPDownloadThread extends Thread implements Runnable, Cloneable {
             alreadyDownloaded = f.length();
             if (alreadyDownloaded > mConfig.currentPieceLength) {
                 throw new FatalFTPException("Already downloaded part is bigger then defined piece length!\nFile:" + f.getAbsolutePath());
-            } else {
-                setFtpState(State.Downloaded);
-            }
+            } else if(mConfig.currentPieceLength == alreadyDownloaded) {
+                setFtpState(mConfig.parts == 1 ? State.Finished : State.Downloaded);
+            }//else just continue to download
         }
         return alreadyDownloaded;
     }
@@ -447,5 +450,16 @@ public class FTPDownloadThread extends Thread implements Runnable, Cloneable {
      */
     public int getSpeed() {
         return mSpeed;
+    }
+
+    protected DownloadTask getParentTask() {
+        return mParentTask;
+    }
+
+    protected void setParentTask(DownloadTask parentTask) {
+        if(mParentTask != null && mParentTask != parentTask){
+            throw new IllegalStateException("This thread already has different parent DownloadTask");
+        }
+        mParentTask = parentTask;
     }
 }

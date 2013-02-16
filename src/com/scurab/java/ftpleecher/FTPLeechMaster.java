@@ -25,6 +25,7 @@ public class FTPLeechMaster implements FTPDownloadListener {
 
     private NotificationAdapter mAdapter;
 
+    /** thread index counter **/
     private static int mThreadIndex = 0;
 
     public FTPLeechMaster() {
@@ -47,24 +48,39 @@ public class FTPLeechMaster implements FTPDownloadListener {
                          * Main cycle for starting new waiting threads
                          * This cycle is called every time if any thread change state
                          */
+
+                        //region cycle
                         for (int i = 0, s = 0, n = mQueue.size(); i < n && s < mWorkingThreads; i++) {
                             FTPDownloadThread thread = mQueue.get(i);
 
                             if (thread != null) {
                                 final FTPDownloadThread.State state = thread.getFtpState();
-                                if (state == FTPDownloadThread.State.Downloaded
-                                        || state == FTPDownloadThread.State.Finished
-                                        || state == FTPDownloadThread.State.Paused) {
+                                if (state == FTPDownloadThread.State.Created) {
+                                    System.out.println("Starting " + thread.getContext().remoteFullPath + " part: " + thread.getContext().part + " State:" + thread.getFtpState());
+
+                                    synchronized(mQueue){
+                                        //started in lock, to be sure there is calling after state change
+                                        thread.start();
+                                        /*
+                                         * wait for status change which should
+                                         * be almost immediately to downloaded, finished or connecting
+                                         */
+                                        mQueue.wait();
+                                    }
+                                    if (!StateHelper.isActive(thread.getFtpState())) {
+                                        continue;//nothing to do thread is not active
+                                    }
+                                }else if (!StateHelper.isActive(state)) {
                                     continue;//nothing to do
-                                } else if (state == FTPDownloadThread.State.Created) {
-                                    System.out.println("Starting " + thread.getContext().remoteFullPath + " part: " + thread.getContext().part);
-                                    thread.start();
                                 }
                                 s++;//increase working threads number
                             }
                         }
-                        //wait for any change
-                        mQueue.wait();
+                        //endregion cycle
+                        synchronized (mQueue){
+                            //wait for any change
+                            mQueue.wait();
+                        }
                     }
                 }
                 //if queue is empty, still wait for new events
@@ -133,7 +149,7 @@ public class FTPLeechMaster implements FTPDownloadListener {
 
     @Override
     public void onStatusChange(FTPDownloadThread thread, FTPDownloadThread.State state) {
-        if (state == FTPDownloadThread.State.Downloaded) {
+        if (state == FTPDownloadThread.State.Downloaded || state == FTPDownloadThread.State.Finished) {
             System.out.println("Downloaded " + thread.getContext().remoteFullPath + " part: " + thread.getContext().part);
             synchronized (mQueue) {
                 mQueue.notifyAll();

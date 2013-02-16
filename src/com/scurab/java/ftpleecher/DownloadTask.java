@@ -23,6 +23,8 @@ public class DownloadTask implements FTPDownloadListener {
      */
     private List<FTPDownloadThread> mWorkingThreads;
 
+    private boolean mDeleteAfterMerge;
+
     public DownloadTask(Collection<FTPDownloadThread> data) {
         mData = new ArrayList<FTPDownloadThread>(data);
         mWorkingThreads = new ArrayList<FTPDownloadThread>(data);
@@ -175,6 +177,18 @@ public class DownloadTask implements FTPDownloadListener {
         } catch (Exception e) {
             e.printStackTrace();
         }
+        if (mDeleteAfterMerge) {
+            for (int i = 0, n = parts.length; i < n; i++) {
+                FTPDownloadThread thread = parts[i];
+                context = thread.getContext();
+                try {
+                    context.localFile.delete();
+                } catch (Exception e) {
+                    e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
+                }
+            }
+
+        }
     }
 
     /**
@@ -210,5 +224,13 @@ public class DownloadTask implements FTPDownloadListener {
 
     public List<FTPDownloadThread> getData() {
         return Collections.unmodifiableList(mData);
+    }
+
+    public void setDeleteAfterMerge(boolean b) {
+        mDeleteAfterMerge = b;
+    }
+
+    public boolean getDeleteAfterMeger() {
+        return mDeleteAfterMerge;
     }
 }

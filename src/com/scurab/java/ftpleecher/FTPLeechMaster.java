@@ -149,11 +149,11 @@ public class FTPLeechMaster implements FTPDownloadListener {
 
     @Override
     public void onStatusChange(FTPDownloadThread thread, FTPDownloadThread.State state) {
+        synchronized (mQueue) {
+            mQueue.notifyAll();
+        }
         if (state == FTPDownloadThread.State.Downloaded || state == FTPDownloadThread.State.Finished) {
             System.out.println("Downloaded " + thread.getContext().remoteFullPath + " part: " + thread.getContext().part);
-            synchronized (mQueue) {
-                mQueue.notifyAll();
-            }
         }
         if (mAdapter != null) {
             mAdapter.performNotifyDataChanged(thread);

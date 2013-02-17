@@ -81,13 +81,13 @@ public class FTPContext extends FTPSettings implements Cloneable {
      * local file template for {@link String#format(String, Object...)}<br/>
      * Must contains 3 variables for outputFolder, file name and counter
      */
-    public String localMultipleFilesTemplate = "%s/%s.part%03d";
+    public String localMultipleFilesTemplate = "%s" + System.getProperty("file.separator") +"%s.part%03d";
 
     /**
      * local file template for {@link String#format(String, Object...)}<br/>
      * Must contains 3 variables for outputFolder, file name and counter
      */
-    public String localSingleFileTemplate = "%s/%s";
+    public String localSingleFileTemplate = "%s" + System.getProperty("file.separator") + "%s";
 
     /**
      * Local file name

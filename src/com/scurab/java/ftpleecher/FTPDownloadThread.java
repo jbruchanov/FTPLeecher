@@ -65,7 +65,7 @@ public class FTPDownloadThread implements Runnable, Cloneable {
      * Base thread states *
      */
     public enum State {
-        Created, Started, Connecting, Connected, Downloading, Error, WaitingForRetry, Paused, Downloaded, Merging, Finished;
+        Created, Started, Connecting, Connected, Downloading, Error, FatalError, WaitingForRetry, Paused, Downloaded, Merging, Finished;
     }
 
     protected FTPDownloadThread(FTPContext config) {
@@ -105,15 +105,18 @@ public class FTPDownloadThread implements Runnable, Cloneable {
     @Override
     public void run() {
         //don't inform about this state, it's just flag that thread is already running
-        mException = null;
-        mState = State.Started;
-        downloadImpl();
-        synchronized(this){
-            mWorkingThread = null;
+        do {
+            mException = null;
+            mState = State.Started;
+            downloadImpl();
+            if (!(mState == State.Downloaded || mState == State.Finished || mState == State.FatalError)) {
+                mException = new Exception("WTF_ERROR Unexpected Leaving downloading process! State:" + mState + ", try restart this thread");
+                mState = State.Error;
+            }
         }
-        if(!(mState == State.Downloaded || mState == State.Finished || mState == State.Error)){
-            mException = new Exception("WTF_ERROR Unexpected Leaving downloading process! State:" + mState + ", try restart this thread");
-            mState = State.Error;
+        while (!(mState == State.Downloaded || mState == State.Finished || mState == State.FatalError)) ;
+        synchronized (this) {
+            mWorkingThread = null;
         }
     }
 
@@ -216,7 +219,7 @@ public class FTPDownloadThread implements Runnable, Cloneable {
                 mException = ffe;
                 ffe.printStackTrace();
                 onFatalError(ffe);
-                setFtpState(State.Error);
+                setFtpState(State.FatalError);
                 return;
             } catch (IOException e) {
                 onError(e);

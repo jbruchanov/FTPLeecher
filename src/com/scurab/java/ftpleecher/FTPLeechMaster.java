@@ -192,17 +192,39 @@ public class FTPLeechMaster implements FTPDownloadListener {
         mAdapter = adapter;
     }
 
-    /**
-     * Get current download speed through all of threads<br/>
-     * This value is approx. download speed of whole app.
-     *
-     * @return
-     */
-    public int getCurrentDownloadSpeed() {
-        int v = 0;
+    public Statistics getStatistics(){
+        Statistics stats = new Statistics();
+
+        int speed = 0;
+        long down = 0;
+        long complete = 0;
+
         for (FTPDownloadThread t : mQueue) {
-            v += t.getSpeed();
+            speed += t.getSpeed();
+            down += t.getDownloaded();
+            complete += t.getContext().currentPieceLength;
         }
-        return v;
+        long toDown = complete - down;
+        int eta = (speed == 0 ? 0 : (int)(toDown / speed));
+
+        Statistics s = new Statistics();
+        s.currentSpeed = speed;
+        s.eta = eta;
+        return s;
+    }
+
+    /**
+     * Help data container for some informations about downloading process
+     */
+    public static class Statistics{
+        /**
+         * Current speed (avg/s) in bytes
+         */
+        public int currentSpeed;
+
+        /**
+         * estimated time of arrival in seconds
+         */
+        public int eta;
     }
 }

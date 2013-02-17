@@ -144,7 +144,7 @@ public class FTPFactory {
             newCfg.remoteFullPath += FTP_SEPARATOR + f.getName();
 
             if (f.isFile()) {
-                result.addAll(createThreadsForFile(config, f));
+                result.addAll(createThreadsForFile(newCfg, f));
             } else {
                 newCfg.outputDirectory += mFolderSeparator + f.getName();
                 result.addAll(createThreadsForDirectory(newCfg, fclient, f));

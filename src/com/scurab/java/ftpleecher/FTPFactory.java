@@ -3,6 +3,7 @@ package com.scurab.java.ftpleecher;
 import com.scurab.java.ftpleecher.tools.TextUtils;
 import org.apache.commons.net.ftp.FTPClient;
 import org.apache.commons.net.ftp.FTPFile;
+import org.apache.commons.net.ftp.FTPSClient;
 
 import java.io.File;
 import java.io.IOException;
@@ -160,15 +161,15 @@ public class FTPFactory {
      * @throws IOException
      */
     public static FTPClient openFtpClient(FTPConnection config) throws IOException, FatalFTPException {
-        return openFtpClient(config.server, config.port, config.username, config.password, config.passive, config.fileType);
+        return openFtpClient(config.server, config.port, config.username, config.password, config.passive, config.fileType, config.ftps);
     }
 
     public static FTPClient openFtpClient(FTPContext context) throws IOException, FatalFTPException {
-        return openFtpClient(context.server, context.port, context.username, context.password, context.passive, context.fileType);
+        return openFtpClient(context.server, context.port, context.username, context.password, context.passive, context.fileType, context.ftps);
     }
 
-    private static FTPClient openFtpClient(String server, int port, String user, String pass, boolean passive, int fileType) throws IOException, FatalFTPException {
-        FTPClient fc = new FTPClient();
+    private static FTPClient openFtpClient(String server, int port, String user, String pass, boolean passive, int fileType, boolean ftps) throws IOException, FatalFTPException {
+        FTPClient fc = ftps ? new FTPSClient() : new FTPClient();
 
         fc.connect(server, port);
 

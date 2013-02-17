@@ -41,9 +41,15 @@ public class FTPConnection {
      */
     public int fileType = FTP.BINARY_FILE_TYPE;
 
+    /**
+     * Use secure ftp connection
+     * @return
+     */
+    public boolean ftps = false;
+
 
     @Override
     public String toString() {
-        return String.format("%s@%s:%s", username, server, port);
+        return String.format("%s://%s@%s:%s/", ftps ? "ftps" : "ftp",  username, server, port);
     }
 }

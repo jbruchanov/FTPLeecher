@@ -114,6 +114,12 @@ public class FTPContext extends FTPSettings implements Cloneable {
      */
     public int parts = 1;
 
+    /**
+     * Use secure ftp connection
+     * @return
+     */
+    public boolean ftps = false;
+
     @Override
     public FTPContext clone() {
         try {

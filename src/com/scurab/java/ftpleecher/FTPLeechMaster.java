@@ -1,6 +1,8 @@
 package com.scurab.java.ftpleecher;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -25,6 +27,8 @@ public class FTPLeechMaster implements FTPDownloadListener {
 
     private NotificationAdapter mAdapter;
 
+    private ConnSorter<FTPDownloadThread> mSorter = new ConnSorter<FTPDownloadThread>();
+
     /** thread index counter **/
     private static int mThreadIndex = 0;
 
@@ -48,10 +52,12 @@ public class FTPLeechMaster implements FTPDownloadListener {
                          * Main cycle for starting new waiting threads
                          * This cycle is called every time if any thread change state
                          */
-
+                        ArrayList<FTPDownloadThread> mSorted = new ArrayList<FTPDownloadThread>(mQueue);
+                        //use sorted value to move all created thread to the end to avoid more thread for restarted
+                        Collections.sort(mSorted, mSorter);
                         //region cycle
-                        for (int i = 0, s = 0, n = mQueue.size(); i < n && s < mWorkingThreads; i++) {
-                            FTPDownloadThread thread = mQueue.get(i);
+                        for (int i = 0, s = 0, n = mSorted.size(); i < n && s < mWorkingThreads; i++) {
+                            FTPDownloadThread thread = mSorted.get(i);
 
                             if (thread != null) {
                                 final FTPDownloadThread.State state = thread.getFtpState();
@@ -72,6 +78,8 @@ public class FTPLeechMaster implements FTPDownloadListener {
                                     }
                                 }else if (!StateHelper.isActive(state)) {
                                     continue;//nothing to do
+                                }else if (state == FTPDownloadThread.State.FatalError){
+                                    continue;//continue download, this needs user
                                 }
                                 s++;//increase working threads number
                             }
@@ -227,4 +235,13 @@ public class FTPLeechMaster implements FTPDownloadListener {
          */
         public int eta;
     }
+
+    private static class ConnSorter<T extends FTPDownloadThread> implements Comparator<FTPDownloadThread>{
+
+        @Override
+        public int compare(FTPDownloadThread o1, FTPDownloadThread o2) {
+            return o1.getFtpState().getNumVal() - o2.getFtpState().getNumVal();
+        }
+    }
 }
+

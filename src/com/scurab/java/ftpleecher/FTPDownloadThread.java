@@ -65,7 +65,17 @@ public class FTPDownloadThread implements Runnable, Cloneable {
      * Base thread states *
      */
     public enum State {
-        Created, Started, Connecting, Connected, Downloading, Error, FatalError, WaitingForRetry, Paused, Downloaded, Merging, Finished;
+        //created must last to go trough all states and
+        Created(100), Started(10), Connecting(11), Connected(12), Downloading(0), Error(13), FatalError(14), WaitingForRetry(15), Paused(16), Downloaded(17), Merging(18), Finished(19);
+        private int numVal;
+
+        State(int numVal) {
+            this.numVal = numVal;
+        }
+
+        public int getNumVal() {
+            return numVal;
+        }
     }
 
     protected FTPDownloadThread(FTPContext config) {
@@ -94,7 +104,7 @@ public class FTPDownloadThread implements Runnable, Cloneable {
     public synchronized void restart(){
         if(mWorkingThread != null){
             throw new IllegalStateException("Thread already started");
-        }else if(mState == State.Downloaded || mState == State.Finished || mWorkingThread == null){
+        }else if(mWorkingThread == null){
             setFtpState(State.Created);
         }else{
             throw new IllegalStateException("Thread can be restarted only if it's Downloaded or Finished!");

@@ -41,7 +41,7 @@ public class FTPFactory {
      * @throws IOException
      * @throws FatalFTPException
      */
-    public DownloadTask createTask(String fullpath, String downloadTo) throws IOException, FatalFTPException {
+    public DownloadTask createTask(FTPFile ftpfile, String fullpath, String downloadTo) throws IOException, FatalFTPException {
         mConfig.outputDirectory = downloadTo;
         FTPClient fc = openFtpClient(mConfig);
 
@@ -62,7 +62,7 @@ public class FTPFactory {
             } else if (files.length > 1) {
                 //it was folder and we got content of this folder
                 //update downloadTo folder
-                downloadTo = createFolderIfNeccessary(downloadTo + mFolderSeparator + fullpath.replace(FTP_SEPARATOR, mFolderSeparator));
+                downloadTo = createFolderIfNeccessary(downloadTo + mFolderSeparator + ftpfile.getName());
                 mConfig.outputDirectory = downloadTo;
 
                 for (FTPFile file : files) {

@@ -139,6 +139,7 @@ public class FTPDownloadThread implements Runnable, Cloneable {
                 forceResume = false;
                 //state can be set in getLocalFile when pieceLen and fileSize are same
                 if (mState == State.Downloaded || mState == State.Finished) {
+                    mDownloaded = mConfig.currentPieceLength;
                     break;
                 }
 

@@ -66,16 +66,7 @@ public class FTPDownloadThread implements Runnable, Cloneable {
      */
     public enum State {
         //created must last to go trough all states and
-        Created(100), Started(10), Connecting(11), Connected(12), Downloading(0), Error(13), FatalError(14), WaitingForRetry(15), Paused(16), Downloaded(17), Merging(18), Finished(19);
-        private int numVal;
-
-        State(int numVal) {
-            this.numVal = numVal;
-        }
-
-        public int getNumVal() {
-            return numVal;
-        }
+        Created, Started, Connecting, Connected, Downloading, Error, FatalError, WaitingForRetry, Paused, Downloaded, Merging, Finished;
     }
 
     protected FTPDownloadThread(FTPContext config) {
@@ -114,9 +105,9 @@ public class FTPDownloadThread implements Runnable, Cloneable {
 
     @Override
     public void run() {
-        //don't inform about this state, it's just flag that thread is already running
         do {
             mException = null;
+            //don't inform about this state, it's just flag that thread is already running
             mState = State.Started;
             downloadImpl();
             if (!(mState == State.Downloaded || mState == State.Finished || mState == State.FatalError)) {
@@ -157,7 +148,7 @@ public class FTPDownloadThread implements Runnable, Cloneable {
                 setFtpState(State.Connected);
 
                 //init start values
-                final long startOffset = (mConfig.part * mConfig.globalPieceLength) + alreadyDownloaded;
+                final long startOffset = ((long)mConfig.part * (long)mConfig.globalPieceLength) + alreadyDownloaded;
                 ftpClient.setRestartOffset(startOffset);
 
                 //create streams

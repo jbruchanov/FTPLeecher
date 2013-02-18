@@ -70,7 +70,7 @@ public class FTPContext extends FTPSettings implements Cloneable {
     /**
      * Counted size of this particular piece
      */
-    public int currentPieceLength = 0;
+    public long currentPieceLength = 0;
 
     /**
      * Define output directory for temp files

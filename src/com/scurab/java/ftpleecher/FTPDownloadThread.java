@@ -15,7 +15,7 @@ import java.util.List;
 /**
  * Core implementation of downloading
  */
-public class FTPDownloadThread implements Runnable, Cloneable {
+public class FTPDownloadThread implements Runnable {
 
     /**
      * Default time for calling {@link FTPDownloadListener#onDownloadProgress(FTPDownloadThread, double, double)} *
@@ -36,7 +36,7 @@ public class FTPDownloadThread implements Runnable, Cloneable {
     /**
      * Current FTP state *
      */
-    private State mState;
+    private State mState = State.Created;
 
     /**
      * already downloaded len
@@ -74,7 +74,6 @@ public class FTPDownloadThread implements Runnable, Cloneable {
             throw new IllegalArgumentException("FTPContext is null!");
         }
         mConfig = config;
-        setFtpState(State.Created);
 
         if (config.parts > 1) {
             mThreadName = (String.format("%s %03d", mConfig.fileName, config.part));
@@ -83,20 +82,24 @@ public class FTPDownloadThread implements Runnable, Cloneable {
         }
     }
 
-    public synchronized void start(){
+    public synchronized boolean start(){
         if(mWorkingThread != null){
-            throw new IllegalStateException("Thread already started");
+            return false;
+        }else{
+            mWorkingThread = new Thread(this);
+            mWorkingThread.setName(mThreadName);
+            mWorkingThread.start();
+            return true;
         }
-        mWorkingThread = new Thread(this);
-        mWorkingThread.setName(mThreadName);
-        mWorkingThread.start();
     }
 
     public synchronized void restart(){
         if(mWorkingThread != null){
             throw new IllegalStateException("Thread already started");
         }else if(mWorkingThread == null){
-            setFtpState(State.Created);
+            if(mState != State.Created){
+                setFtpState(State.Created);
+            }
         }else{
             throw new IllegalStateException("Thread can be restarted only if it's Downloaded or Finished!");
         }
@@ -108,7 +111,7 @@ public class FTPDownloadThread implements Runnable, Cloneable {
         do {
             mException = null;
             //don't inform about this state, it's just flag that thread is already running
-            mState = State.Started;
+            setFtpState(State.Started);
             downloadImpl();
             if (!(mState == State.Downloaded || mState == State.Finished || mState == State.FatalError)) {
                 mException = new Exception("WTF_ERROR Unexpected Leaving downloading process! State:" + mState + ", try restart this thread");
@@ -124,7 +127,7 @@ public class FTPDownloadThread implements Runnable, Cloneable {
     /**
      * Complete download implementation
      */
-    private void downloadImpl() {
+    protected void downloadImpl() {
         FTPClient ftpClient = null;
         FileOutputStream fileOutputStream = null;
         InputStream input = null;
@@ -267,7 +270,7 @@ public class FTPDownloadThread implements Runnable, Cloneable {
      * @return length of already mDownloaded pice
      * @throws FatalFTPException
      */
-    private long onPreInit(File f, boolean forceResume) throws FatalFTPException {
+    public long onPreInit(File f, boolean forceResume) throws FatalFTPException {
         long alreadyDownloaded = 0;
         //for restart
         if (!mConfig.resume && !forceResume) {
@@ -329,7 +332,10 @@ public class FTPDownloadThread implements Runnable, Cloneable {
      *
      * @param state
      */
-    protected void setFtpState(State state) {
+    protected synchronized void setFtpState(State state) {
+        if(state == State.Created && !(mState == State.Downloaded || mState == State.Finished || mState == State.FatalError)){
+            throw new IllegalStateException("Restarted thread can be only from downloaded or finished state");
+        }
         mState = state;
         mSpeed = 0;
         synchronized (mListeners) {
@@ -362,7 +368,7 @@ public class FTPDownloadThread implements Runnable, Cloneable {
     }
 
     //region Notification
-    private void onFatalError(FatalFTPException ffe) {
+    public void onFatalError(FatalFTPException ffe) {
         synchronized (mListeners) {
             for (FTPDownloadListener l : mListeners) {
                 l.onFatalError(this, ffe);
@@ -370,7 +376,7 @@ public class FTPDownloadThread implements Runnable, Cloneable {
         }
     }
 
-    private void onError(Exception e) {
+    public void onError(Exception e) {
         synchronized (mListeners) {
             for (FTPDownloadListener l : mListeners) {
                 l.onError(this, e);
@@ -384,7 +390,7 @@ public class FTPDownloadThread implements Runnable, Cloneable {
      * @param downloaded      for whole pcs
      * @param downloadedInSec fot last second
      */
-    private void onDownloadProgress(long downloaded, long downloadedInSec) {
+    public void onDownloadProgress(long downloaded, long downloadedInSec) {
         synchronized (mListeners) {
             for (FTPDownloadListener l : mListeners) {
                 l.onDownloadProgress(this, downloaded, downloadedInSec);
@@ -400,11 +406,6 @@ public class FTPDownloadThread implements Runnable, Cloneable {
      */
     public FTPContext getContext() {
         return mConfig.clone();
-    }
-
-    @Override
-    protected FTPDownloadThread clone() throws CloneNotSupportedException {
-        return new FTPDownloadThread(mConfig);
     }
 
     /**

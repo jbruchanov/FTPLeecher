@@ -13,7 +13,7 @@ public class FTPLeechMaster implements FTPDownloadListener {
     /**
      * variable for count of running download threads
      */
-    private int mWorkingThreads = 4;
+    private volatile int mWorkingThreads = 4;
     /**
      * Queue of threds *
      */
@@ -23,11 +23,13 @@ public class FTPLeechMaster implements FTPDownloadListener {
      */
     private Thread mWorkingThread;
 
-    private boolean mIsRunning = true;
+    private final boolean mIsRunning = true;
 
     private NotificationAdapter mAdapter;
 
-    /** thread index counter **/
+    /**
+     * thread index counter *
+     */
     private static int mThreadIndex = 0;
 
     public FTPLeechMaster() {
@@ -42,8 +44,9 @@ public class FTPLeechMaster implements FTPDownloadListener {
     }
 
     public void doImpl() {
-        try {
-            while (mIsRunning) {
+
+        while (mIsRunning) {
+            try {
                 while (!mQueue.isEmpty()) {
                     synchronized (mQueue) {
                         /*
@@ -52,46 +55,30 @@ public class FTPLeechMaster implements FTPDownloadListener {
                          */
 
                         //use sorted value to move all created thread to the end to avoid more thread for restarted
-                        int downloading = 0;
-                        for (int i = 0, n = mQueue.size(); i < n; i++) {
-                            FTPDownloadThread thread = mQueue.get(i);
-                            final FTPDownloadThread.State state = thread.getFtpState();
-                            if (thread != null) {
-                                if(isRunning(state)){
-                                    downloading++;
-                                }
-                            }
-                        }
-                        if(downloading < mWorkingThreads){
+                        int downloading = getRunningThreads();
+
+                        System.out.println(String.format("FTPLeecher d:%s w:%s", downloading, mWorkingThreads));
+                        if (downloading < mWorkingThreads) {
                             //region cycle
-                            for (int i = 0, s = 0, n = mQueue.size(); i < n && s < mWorkingThreads; i++) {
+                            for (int i = 0, n = mQueue.size();i < n && downloading < mWorkingThreads; i++) {
                                 FTPDownloadThread thread = mQueue.get(i);
                                 if (thread != null) {
-                                    final FTPDownloadThread.State state = thread.getFtpState();
+                                    FTPDownloadThread.State state = thread.getFtpState();
                                     if (state == FTPDownloadThread.State.Created) {
-                                        System.out.println("Starting " + thread.getContext().remoteFullPath + " part: " + thread.getContext().part + " State:" + thread.getFtpState());
-
-                                        synchronized(mQueue){
-                                            //started in lock, to be sure there is calling after state change
-                                            thread.start();
-                                            /*
-                                             * wait for status change which should
-                                             * be almost immediately to downloaded, finished or connecting
-                                             */
-                                            mQueue.wait();
+                                        if(thread.start()){
+                                            System.out.println("Started (" + i + ")");
+                                            downloading++;//increase working threads number
+                                            mQueue.wait();//wait for state update about this thread
+                                            System.out.println(String.format("FTPLeecher after start d:%s w:%s", getRunningThreads(), mWorkingThreads));
+                                        }else{
+                                            //already running
                                         }
-                                        if (!StateHelper.isActive(thread.getFtpState())) {
-                                            continue;//nothing to do thread is not active
-                                        }
-                                    }else if (!StateHelper.isActive(state)) {
-                                        continue;//nothing to do
                                     }
-                                    s++;//increase working threads number
                                 }
                             }
                         }
                         //endregion cycle
-                        synchronized (mQueue){
+                        synchronized (mQueue) {
                             //wait for any change
                             mQueue.wait();
                         }
@@ -103,17 +90,46 @@ public class FTPLeechMaster implements FTPDownloadListener {
                         mQueue.wait();
                     }
                 }
+            } catch (Exception e) {
+                e.printStackTrace();
             }
-        } catch (Exception e) {
-            e.printStackTrace();
         }
+
     }
 
-    private boolean isRunning(FTPDownloadThread.State state){
-        return !(state == FTPDownloadThread.State.Created
-                || state == FTPDownloadThread.State.Downloaded
-                || state == FTPDownloadThread.State.FatalError
-                || state == FTPDownloadThread.State.Finished);
+    private int getRunningThreads() {
+        int downloading = 0;
+        for (int i = 0, n = mQueue.size(); i < n; i++) {
+            FTPDownloadThread thread = mQueue.get(i);
+            final FTPDownloadThread.State state = thread.getFtpState();
+//            System.out.printf("%s %s", i , state.toString());
+            if (thread != null) {
+                if (isRunning(state)) {
+                    downloading++;
+                }
+            }
+        }
+        return downloading;
+    }
+
+    private boolean isRunning(FTPDownloadThread.State state) {
+        //Started, Connecting, Connected, Downloading, Error, WaitingForRetry, Paused, ;
+        return  state == FTPDownloadThread.State.Started ||
+                state == FTPDownloadThread.State.Connecting ||
+                state == FTPDownloadThread.State.Connected ||
+                state == FTPDownloadThread.State.Downloading ||
+                state == FTPDownloadThread.State.Error ||
+                state == FTPDownloadThread.State.WaitingForRetry ||
+                state == FTPDownloadThread.State.Paused;
+    }
+
+    private boolean isStopped(FTPDownloadThread.State state) {
+        //Created, Started, Connecting, Connected, Downloading, Error, FatalError, WaitingForRetry, Paused, Downloaded, Merging, Finished;
+        return  state == FTPDownloadThread.State.Created ||
+                state == FTPDownloadThread.State.FatalError ||
+                state == FTPDownloadThread.State.Downloaded ||
+                state == FTPDownloadThread.State.Merging ||
+                state == FTPDownloadThread.State.Finished;
     }
 
     /**
@@ -170,8 +186,10 @@ public class FTPLeechMaster implements FTPDownloadListener {
 
     @Override
     public void onStatusChange(FTPDownloadThread thread, FTPDownloadThread.State state) {
-        synchronized (mQueue) {
-            mQueue.notifyAll();
+        if (isStopped(state) || state == FTPDownloadThread.State.Started) {
+            synchronized (mQueue) {
+                mQueue.notifyAll();
+            }
         }
         if (state == FTPDownloadThread.State.Downloaded || state == FTPDownloadThread.State.Finished) {
             System.out.println("Downloaded " + thread.getContext().remoteFullPath + " part: " + thread.getContext().part);
@@ -213,7 +231,7 @@ public class FTPLeechMaster implements FTPDownloadListener {
         mAdapter = adapter;
     }
 
-    public Statistics getStatistics(){
+    public Statistics getStatistics() {
         Statistics stats = new Statistics();
 
         int speed = 0;
@@ -226,7 +244,7 @@ public class FTPLeechMaster implements FTPDownloadListener {
             complete += t.getContext().currentPieceLength;
         }
         long toDown = complete - down;
-        int eta = (speed == 0 ? 0 : (int)(toDown / speed));
+        int eta = (speed == 0 ? 0 : (int) (toDown / speed));
 
         Statistics s = new Statistics();
         s.currentSpeed = speed;
@@ -237,7 +255,7 @@ public class FTPLeechMaster implements FTPDownloadListener {
     /**
      * Help data container for some informations about downloading process
      */
-    public static class Statistics{
+    public static class Statistics {
         /**
          * Current speed (avg/s) in bytes
          */

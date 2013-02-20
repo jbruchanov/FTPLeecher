@@ -1,5 +1,6 @@
 package com.scurab.java.ftpleecher;
 
+import com.scurab.java.ftpleecher.test.FtpDownloadThreadTest;
 import com.scurab.java.ftpleecher.tools.TextUtils;
 import org.apache.commons.net.ftp.FTPClient;
 import org.apache.commons.net.ftp.FTPFile;
@@ -14,6 +15,8 @@ import java.util.List;
  * Factory for creating {@link DownloadTask} objects
  */
 public class FTPFactory {
+
+    private static final boolean FAKE = false;
 
     private FTPContext mConfig;
 
@@ -117,20 +120,27 @@ public class FTPFactory {
                 FTPContext fc = config.clone();
                 fc.part = i;
                 fc.currentPieceLength = config.globalPieceLength;
-                result.add(new FTPDownloadThread(fc));
+                result.add(createThread(fc));
             }
             //update lastone
             FTPContext fc = config.clone();
             fc.currentPieceLength = (int) (size - ((parts - 1) * (double) config.globalPieceLength));
             fc.part = fc.parts - 1;
-            result.add(new FTPDownloadThread(fc));
+            result.add(createThread(fc));
         } else {
             //clone created in parent method
             config.currentPieceLength = (int) size;
-            result.add(new FTPDownloadThread(config));
+            result.add(createThread(config));
         }
 
         return result;
+    }
+
+    private FTPDownloadThread createThread(FTPContext config){
+        if(FAKE){
+            return new FtpDownloadThreadTest(config);
+        }else
+            return new FTPDownloadThread(config);
     }
 
     private List<FTPDownloadThread> createThreadsForDirectory(final FTPContext config, final FTPClient fclient, final FTPFile file) throws IOException {

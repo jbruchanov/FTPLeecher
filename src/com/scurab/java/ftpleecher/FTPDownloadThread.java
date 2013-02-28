@@ -18,6 +18,10 @@ import java.util.List;
 public class FTPDownloadThread implements Runnable {
 
     /**
+     * Default wait time for any error to retry
+     */
+    public static final int DEFAULT_WAIT = 10000;
+    /**
      * Default time for calling {@link FTPDownloadListener#onDownloadProgress(FTPDownloadThread, double, double)} *
      */
     private static final int NOTIFY = 1000;
@@ -60,6 +64,10 @@ public class FTPDownloadThread implements Runnable {
     private String mThreadName;
 
     private Thread mWorkingThread;
+
+    private static final int FATAL_ERROR_TO_STOP = 5;
+
+    private int mFatalErrorCounter = 0;
 
     /**
      * Base thread states *
@@ -108,6 +116,7 @@ public class FTPDownloadThread implements Runnable {
 
     @Override
     public void run() {
+        mFatalErrorCounter = 0;
         do {
             mException = null;
             //don't inform about this state, it's just flag that thread is already running
@@ -221,17 +230,26 @@ public class FTPDownloadThread implements Runnable {
                 }//otherwise just restart process and again
 
             } catch (FatalFTPException ffe) {
+                mFatalErrorCounter++;
                 mException = ffe;
                 ffe.printStackTrace();
                 onFatalError(ffe);
-                setFtpState(State.FatalError);
-                return;
+                if(mFatalErrorCounter >= FATAL_ERROR_TO_STOP){
+                    setFtpState(State.FatalError);
+                    return;
+                }else{
+                    setFtpState(State.WaitingForRetry);
+                    //wait 10s and try again
+                    try {
+                        Thread.sleep(DEFAULT_WAIT);
+                    } catch (InterruptedException e1) { /* ignore wake */ }
+                }
             } catch (IOException e) {
                 onError(e);
                 setFtpState(State.WaitingForRetry);
                 //wait 10s and try again
                 try {
-                    Thread.sleep(10000);
+                    Thread.sleep(DEFAULT_WAIT);
                 } catch (InterruptedException e1) { /* ignore wake */ }
             } catch (Throwable t) {
                 mException = t;

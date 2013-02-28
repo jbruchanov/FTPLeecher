@@ -25,6 +25,8 @@ public class DownloadTask implements FTPDownloadListener {
 
     private boolean mDeleteAfterMerge;
 
+    private boolean mIsMerging = false;
+
     public DownloadTask(Collection<FTPDownloadThread> data) {
         mData = new ArrayList<FTPDownloadThread>(data);
         mWorkingThreads = new ArrayList<FTPDownloadThread>(data);
@@ -91,8 +93,16 @@ public class DownloadTask implements FTPDownloadListener {
             merge = mWorkingThreads.size() == 0 && mData.size() > 1;
             //we are done in this task, now is time to merge
             if (merge) {
-                //must be called in diff thread to let finish current downloading thread
-                performMerge();
+                if(!mIsMerging){
+                    synchronized (this){
+                        if(!mIsMerging){
+                            mIsMerging = true;
+                            //must be called in diff thread to let finish current downloading thread
+                            performMerge();
+                        }
+                    }
+                }
+
             }
         }
     }
@@ -110,6 +120,7 @@ public class DownloadTask implements FTPDownloadListener {
                     e.printStackTrace();
                 }
                 onMergeFiles();
+                mIsMerging = false;
             }
         });
         t.setName("MergeThread");
@@ -121,7 +132,9 @@ public class DownloadTask implements FTPDownloadListener {
         if(subGroups == null){
             return;
         }
-        for (Long l : subGroups.keySet()) {
+        List<Long> keys = new ArrayList<Long>(subGroups.keySet());
+        Collections.sort(keys);
+        for (Long l : keys) {
             try {
                 FTPDownloadThread[] arr = subGroups.get(l);
                 //if it's null it's still not ready

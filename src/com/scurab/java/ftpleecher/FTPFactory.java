@@ -30,6 +30,8 @@ public class FTPFactory {
         mFolderSeparator = System.getProperty("file.separator");
     }
 
+    private static int GROUP_ID_COUNTER = 0;
+
     private void checkConfig(FTPContext config) {
         if (config.username == null && config.password != null
                 || config.username != null && config.password == null) {
@@ -44,13 +46,13 @@ public class FTPFactory {
      * @throws IOException
      * @throws FatalFTPException
      */
-    public DownloadTask createTask(FTPFile ftpfile, String fullpath, String downloadTo) throws IOException, FatalFTPException {
+    public List<DownloadTask> createTask(FTPFile ftpfile, String fullpath, String downloadTo) throws IOException, FatalFTPException {
         mConfig.outputDirectory = downloadTo;
         FTPClient fc = openFtpClient(mConfig);
 
         FTPFile[] files = fc.listFiles(fullpath);
 
-        List<FTPDownloadThread> result = new ArrayList<FTPDownloadThread>();
+        List<DownloadTask> result = new ArrayList<DownloadTask>();
         if (result == null) {
             throw new IllegalArgumentException("FTP item not found, path:" + fullpath);
         } else {
@@ -60,8 +62,8 @@ public class FTPFactory {
                 FTPContext newCfg = mConfig.clone();
                 newCfg.remoteFullPath = fullpath;
                 newCfg.fileName = file.getName();
-                newCfg.groupId = System.currentTimeMillis();
-                result.addAll(createThreadsForFile(newCfg, file));
+                newCfg.groupId = ++GROUP_ID_COUNTER;
+                result.add(createTaskForFile(newCfg, file));
             } else if (files.length > 1) {
                 //it was folder and we got content of this folder
                 //update downloadTo folder
@@ -70,23 +72,21 @@ public class FTPFactory {
 
                 for (FTPFile file : files) {
                     FTPContext newCfg = mConfig.clone();
-                    newCfg.groupId = System.currentTimeMillis();
+                    newCfg.groupId = ++GROUP_ID_COUNTER;
                     //update fullpath
                     newCfg.remoteFullPath = fullpath + FTP_SEPARATOR + file.getName();
 
                     if (file.isFile()) {
-                        result.addAll(createThreadsForFile(newCfg, file));
+                        result.add(createTaskForFile(newCfg, file));
                     } else {
                         newCfg.outputDirectory += mFolderSeparator + file.getName();
-                        result.addAll(createThreadsForDirectory(newCfg, fc, file));
+                        result.addAll(createTasksForDirectory(newCfg, fc, file));
                     }
                 }
             }
         }
 
-
-        DownloadTask task = new DownloadTask(result);
-        return task;
+        return result;
     }
 
     private String createFolderIfNeccessary(String folder) throws FatalFTPException {
@@ -102,7 +102,7 @@ public class FTPFactory {
      * @param file
      * @return
      */
-    private List<FTPDownloadThread> createThreadsForFile(final FTPContext config, final FTPFile file) {
+    private DownloadTask createTaskForFile(final FTPContext config, final FTPFile file) {
         List<FTPDownloadThread> result = new ArrayList<FTPDownloadThread>();
 
         long size = file.getSize();
@@ -132,8 +132,7 @@ public class FTPFactory {
             config.currentPieceLength = (int) size;
             result.add(createThread(config));
         }
-
-        return result;
+        return new DownloadTask(result);
     }
 
     private FTPDownloadThread createThread(FTPContext config){
@@ -143,24 +142,24 @@ public class FTPFactory {
             return new FTPDownloadThread(config);
     }
 
-    private List<FTPDownloadThread> createThreadsForDirectory(final FTPContext config, final FTPClient fclient, final FTPFile file) throws IOException {
+    private List<DownloadTask> createTasksForDirectory(final FTPContext config, final FTPClient fclient, final FTPFile file) throws IOException {
         FTPFile[] files = fclient.listFiles(config.remoteFullPath);
-        List<FTPDownloadThread> result = new ArrayList<FTPDownloadThread>();
+        List<DownloadTask> toReturn = new ArrayList<DownloadTask>();
 
         for (FTPFile f : files) {
 
             FTPContext newCfg = config.clone();
-            newCfg.groupId = System.currentTimeMillis();
+            newCfg.groupId = ++GROUP_ID_COUNTER;
             newCfg.remoteFullPath += FTP_SEPARATOR + f.getName();
 
             if (f.isFile()) {
-                result.addAll(createThreadsForFile(newCfg, f));
+                toReturn.add(createTaskForFile(newCfg, f));
             } else {
                 newCfg.outputDirectory += mFolderSeparator + f.getName();
-                result.addAll(createThreadsForDirectory(newCfg, fclient, f));
+                toReturn.addAll(createTasksForDirectory(newCfg, fclient, f));
             }
         }
-        return result;
+        return toReturn;
     }
 
     /**

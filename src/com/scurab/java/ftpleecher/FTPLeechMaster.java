@@ -1,9 +1,6 @@
 package com.scurab.java.ftpleecher;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
+import java.util.*;
 
 /**
  * Cor class for implenting working queue
@@ -130,6 +127,16 @@ public class FTPLeechMaster implements FTPDownloadListener {
                 state == FTPDownloadThread.State.Downloaded ||
                 state == FTPDownloadThread.State.Merging ||
                 state == FTPDownloadThread.State.Finished;
+    }
+
+    /**
+     * Enqueue new download task to queue for download
+     * @param tasks
+     */
+    public void enqueue(Collection<DownloadTask> tasks) {
+        for(DownloadTask task : tasks){
+            enqueue(task);
+        }
     }
 
     /**

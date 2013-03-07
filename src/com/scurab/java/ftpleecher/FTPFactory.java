@@ -51,14 +51,16 @@ public class FTPFactory {
         FTPClient fc = openFtpClient(mConfig);
 
         FTPFile[] files = fc.listFiles(fullpath);
-
+        if (fc.getReplyCode() >= 300) {
+            throw new FatalFTPException(TextUtils.getFtpCodeName(fc.getReplyCode()) + "\n" + fc.getReplyString());
+        }
         List<DownloadTask> result = new ArrayList<DownloadTask>();
         if (result == null) {
             throw new IllegalArgumentException("FTP item not found, path:" + fullpath);
         } else {
             //it's file
-            if (files.length == 1) {
-                FTPFile file = files[0];
+            if (files.length == 1 || files.length == 0) {
+                FTPFile file = files.length == 1 ? files[0] : ftpfile;
                 FTPContext newCfg = mConfig.clone();
                 newCfg.remoteFullPath = fullpath;
                 newCfg.fileName = file.getName();

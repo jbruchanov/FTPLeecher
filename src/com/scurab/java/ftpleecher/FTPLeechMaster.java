@@ -14,7 +14,7 @@ public class FTPLeechMaster implements FTPDownloadListener {
     /**
      * Queue of threds *
      */
-    private static List<FTPDownloadThread> mQueue = new ArrayList<FTPDownloadThread>();
+    private final static List<FTPDownloadThread> mQueue = new ArrayList<FTPDownloadThread>();
     /**
      * Current working threads where is handled main logic
      */

@@ -21,7 +21,7 @@ public class DownloadTask implements FTPDownloadListener {
     /**
      * collection of active working threads *
      */
-    private List<FTPDownloadThread> mWorkingThreads;
+    private final List<FTPDownloadThread> mWorkingThreads;
 
     private boolean mDeleteAfterMerge;
 
@@ -200,7 +200,7 @@ public class DownloadTask implements FTPDownloadListener {
                 try {
                     context.localFile.delete();
                 } catch (Exception e) {
-                    e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
+                    e.printStackTrace();
                 }
             }
 
@@ -208,7 +208,7 @@ public class DownloadTask implements FTPDownloadListener {
     }
 
     /**
-     * Get subgroup, each soubgroup is one file separated to parts
+     * Get subgroup, each subgroup is one file separated to parts
      *
      * @return
      */

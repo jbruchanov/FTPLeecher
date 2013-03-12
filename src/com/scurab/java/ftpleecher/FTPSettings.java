@@ -3,11 +3,11 @@ package com.scurab.java.ftpleecher;
 import org.apache.commons.net.ftp.FTP;
 
 /**
- * Created with IntelliJ IDEA.
+ *
  * User: Joe Scurab
  * Date: 15.2.13
  * Time: 23:55
- * To change this template use File | Settings | File Templates.
+ *
  */
 public class FTPSettings {
 

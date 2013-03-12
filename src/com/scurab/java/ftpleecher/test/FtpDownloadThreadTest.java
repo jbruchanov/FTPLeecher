@@ -74,7 +74,7 @@ public class FtpDownloadThreadTest extends FTPDownloadThread{
                 setFtpState(State.Downloaded);
             }
         } catch (Exception e) {
-            e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
+            e.printStackTrace();
         }
     }
 

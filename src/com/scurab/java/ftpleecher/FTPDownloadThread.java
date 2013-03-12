@@ -32,7 +32,7 @@ public class FTPDownloadThread implements Runnable {
     /**
      * just sync lock *
      */
-    private Object mLock = new Object();
+    private final Object mLock = new Object();
     /**
      * Base configuration for downloading process
      */
@@ -53,7 +53,7 @@ public class FTPDownloadThread implements Runnable {
     /**
      * Collection for listeners *
      */
-    private List<FTPDownloadListener> mListeners = new ArrayList<FTPDownloadListener>();
+    private final List<FTPDownloadListener> mListeners = new ArrayList<FTPDownloadListener>();
     /**
      * Keep somewhere last exception for UI layer
      */
@@ -74,7 +74,7 @@ public class FTPDownloadThread implements Runnable {
      */
     public enum State {
         //created must last to go trough all states and
-        Created, Started, Connecting, Connected, Downloading, Error, FatalError, WaitingForRetry, Paused, Downloaded, Merging, Finished;
+        Created, Started, Connecting, Connected, Downloading, Error, FatalError, WaitingForRetry, Paused, Downloaded, Merging, Finished
     }
 
     protected FTPDownloadThread(FTPContext config) {
@@ -108,10 +108,7 @@ public class FTPDownloadThread implements Runnable {
             if(mState != State.Created){
                 setFtpState(State.Created);
             }
-        }else{
-            throw new IllegalStateException("Thread can be restarted only if it's Downloaded or Finished!");
         }
-
     }
 
     @Override

@@ -55,35 +55,32 @@ public class FTPFactory {
             throw new FatalFTPException(TextUtils.getFtpCodeName(fc.getReplyCode()) + "\n" + fc.getReplyString());
         }
         List<DownloadTask> result = new ArrayList<DownloadTask>();
-        if (result == null) {
-            throw new IllegalArgumentException("FTP item not found, path:" + fullpath);
-        } else {
-            //it's file
-            if (files.length == 1 || files.length == 0) {
-                FTPFile file = files.length == 1 ? files[0] : ftpfile;
+
+        //it's a file
+        if (files.length == 1 || files.length == 0) {
+            FTPFile file = files.length == 1 ? files[0] : ftpfile;
+            FTPContext newCfg = mConfig.clone();
+            newCfg.remoteFullPath = fullpath;
+            newCfg.fileName = file.getName();
+            newCfg.groupId = ++GROUP_ID_COUNTER;
+            result.add(createTaskForFile(newCfg, file));
+        } else if (files.length > 1) {
+            //it was folder and we got content of this folder
+            //update downloadTo folder
+            downloadTo = createFolderIfNeccessary(downloadTo + mFolderSeparator + ftpfile.getName());
+            mConfig.outputDirectory = downloadTo;
+
+            for (FTPFile file : files) {
                 FTPContext newCfg = mConfig.clone();
-                newCfg.remoteFullPath = fullpath;
-                newCfg.fileName = file.getName();
                 newCfg.groupId = ++GROUP_ID_COUNTER;
-                result.add(createTaskForFile(newCfg, file));
-            } else if (files.length > 1) {
-                //it was folder and we got content of this folder
-                //update downloadTo folder
-                downloadTo = createFolderIfNeccessary(downloadTo + mFolderSeparator + ftpfile.getName());
-                mConfig.outputDirectory = downloadTo;
+                //update fullpath
+                newCfg.remoteFullPath = fullpath + FTP_SEPARATOR + file.getName();
 
-                for (FTPFile file : files) {
-                    FTPContext newCfg = mConfig.clone();
-                    newCfg.groupId = ++GROUP_ID_COUNTER;
-                    //update fullpath
-                    newCfg.remoteFullPath = fullpath + FTP_SEPARATOR + file.getName();
-
-                    if (file.isFile()) {
-                        result.add(createTaskForFile(newCfg, file));
-                    } else {
-                        newCfg.outputDirectory += mFolderSeparator + file.getName();
-                        result.addAll(createTasksForDirectory(newCfg, fc, file));
-                    }
+                if (file.isFile()) {
+                    result.add(createTaskForFile(newCfg, file));
+                } else {
+                    newCfg.outputDirectory += mFolderSeparator + file.getName();
+                    result.addAll(createTasksForDirectory(newCfg, fc, file));
                 }
             }
         }

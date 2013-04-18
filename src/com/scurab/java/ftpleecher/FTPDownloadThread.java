@@ -104,7 +104,7 @@ public class FTPDownloadThread implements Runnable {
     public synchronized void restart(){
         if(mWorkingThread != null){
             throw new IllegalStateException("Thread already started");
-        }else if(mWorkingThread == null){
+        }else{
             if(mState != State.Created){
                 setFtpState(State.Created);
             }
@@ -205,7 +205,6 @@ public class FTPDownloadThread implements Runnable {
                     }
 
                     //wait if user paused downloading
-                    //FIXME:lock for state
                     if (mState == State.Paused) {
                         synchronized (mLock) {
                             setFtpState(State.Paused);//set again and notify about state change

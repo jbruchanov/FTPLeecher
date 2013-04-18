@@ -40,7 +40,7 @@ public class FTPLeechMaster implements FTPDownloadListener {
         mWorkingThread.start();
     }
 
-    public void doImpl() {
+    private void doImpl() {
 
         while (mIsRunning) {
             try {
@@ -98,9 +98,9 @@ public class FTPLeechMaster implements FTPDownloadListener {
         int downloading = 0;
         for (int i = 0, n = mQueue.size(); i < n; i++) {
             FTPDownloadThread thread = mQueue.get(i);
-            final FTPDownloadThread.State state = thread.getFtpState();
-//            System.out.printf("%s %s", i , state.toString());
             if (thread != null) {
+                final FTPDownloadThread.State state = thread.getFtpState();
+//            System.out.printf("%s %s", i , state.toString());
                 if (isRunning(state)) {
                     downloading++;
                 }

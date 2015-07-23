@@ -123,12 +123,12 @@ public class FTPFactory {
             }
             //update lastone
             FTPContext fc = config.clone();
-            fc.currentPieceLength = (int) (size - ((parts - 1) * (double) config.globalPieceLength));
+            fc.currentPieceLength = (size - ((parts - 1L) * config.globalPieceLength));
             fc.part = fc.parts - 1;
             result.add(createThread(fc));
         } else {
             //clone created in parent method
-            config.currentPieceLength = (int) size;
+            config.currentPieceLength = size;
             result.add(createThread(config));
         }
         return new DownloadTask(result);

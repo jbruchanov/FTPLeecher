@@ -158,7 +158,7 @@ public class FTPDownloadThread implements Runnable {
                 setFtpState(State.Connected);
 
                 //init start values
-                final long startOffset = ((long)mConfig.part * (long)mConfig.globalPieceLength) + alreadyDownloaded;
+                final long startOffset = ((long)mConfig.part * mConfig.globalPieceLength) + alreadyDownloaded;
                 ftpClient.setRestartOffset(startOffset);
 
                 //create streams

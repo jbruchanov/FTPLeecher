@@ -16,7 +16,7 @@ public class FTPSettings {
      * Default value is 15MB
      */
 
-    public int globalPieceLength = 15000000;
+    public long globalPieceLength = 15000000;
 
     /**
      * Allow resuming of downloading parts.<br/>

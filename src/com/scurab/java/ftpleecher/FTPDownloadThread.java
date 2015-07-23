@@ -191,8 +191,8 @@ public class FTPDownloadThread implements Runnable {
                         lastNotify = now;
                     }
 
-                    final int subLen = (int) (mConfig.currentPieceLength - mDownloaded);
-                    final int realLenToWrite = Math.min(len, subLen);
+                    final long subLen = (mConfig.currentPieceLength - mDownloaded);
+                    final int realLenToWrite = (int) Math.min(len, subLen);
                     fileOutputStream.write(buffer, 0, realLenToWrite);
 
                     //save values for notification

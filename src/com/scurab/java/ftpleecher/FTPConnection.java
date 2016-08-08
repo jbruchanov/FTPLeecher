@@ -47,6 +47,10 @@ public class FTPConnection {
      */
     public boolean ftps = false;
 
+    /**
+     * Ignore any certificate related issues, expired, selfsigned etc...
+     */
+    public boolean ignoreSSLCertErrors = true;
 
     @Override
     public String toString() {

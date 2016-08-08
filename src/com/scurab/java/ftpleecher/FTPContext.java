@@ -21,6 +21,7 @@ public class FTPContext extends FTPSettings implements Cloneable {
         passive = fc.passive;
         password = fc.password;
         fileType = fc.fileType;
+        ignoreSSLCertIssues = fc.ignoreSSLCertErrors;
         return this;
     }
 
@@ -119,6 +120,11 @@ public class FTPContext extends FTPSettings implements Cloneable {
      * @return
      */
     public boolean ftps = false;
+
+    /**
+     * Ignore any certificate related issues, expired, selfsigned etc...
+     */
+    public boolean ignoreSSLCertIssues = false;
 
     @Override
     public FTPContext clone() {

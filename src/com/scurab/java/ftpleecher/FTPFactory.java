@@ -8,8 +8,16 @@ import org.apache.commons.net.ftp.FTPSClient;
 
 import java.io.File;
 import java.io.IOException;
+import java.security.GeneralSecurityException;
+import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.List;
+
+import javax.net.SocketFactory;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 
 /**
  * Factory for creating {@link DownloadTask} objects
@@ -169,18 +177,32 @@ public class FTPFactory {
      * @throws IOException
      */
     public static FTPClient openFtpClient(FTPConnection config) throws IOException, FatalFTPException {
-        return openFtpClient(config.server, config.port, config.username, config.password, config.passive, config.fileType, config.ftps);
+        return openFtpClient(config.server, config.port, config.username, config.password, config.passive, config.fileType, config.ftps, config.ignoreSSLCertErrors);
     }
 
     public static FTPClient openFtpClient(FTPContext context) throws IOException, FatalFTPException {
-        return openFtpClient(context.server, context.port, context.username, context.password, context.passive, context.fileType, context.ftps);
+        return openFtpClient(context.server, context.port, context.username, context.password, context.passive, context.fileType, context.ftps, context.ignoreSSLCertIssues);
     }
 
-    private static FTPClient openFtpClient(String server, int port, String user, String pass, boolean passive, int fileType, boolean ftps) throws IOException, FatalFTPException {
+    private static FTPClient openFtpClient(String server, int port, String user, String pass, boolean passive, int fileType, boolean ftps, boolean ftpsIgnoreErrors) throws IOException, FatalFTPException {
         FTPClient fc = ftps ? new FTPSClient() : new FTPClient();
+        if (ftps && ftpsIgnoreErrors) {
+            ((FTPSClient) fc).setTrustManager(new X509TrustManager() {
+                public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+                    return new X509Certificate[0];
+                }
+
+                public void checkClientTrusted(
+                        java.security.cert.X509Certificate[] certs, String authType) {
+                }
+
+                public void checkServerTrusted(
+                        java.security.cert.X509Certificate[] certs, String authType) {
+                }
+            });
+        }
 
         fc.connect(server, port);
-
         if (user != null) {
             boolean succ = fc.login(user, pass);
             if(!succ || fc.getReplyCode() >= 300) {

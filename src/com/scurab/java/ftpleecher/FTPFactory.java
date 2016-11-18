@@ -11,6 +11,8 @@ import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 
 import javax.net.SocketFactory;
@@ -62,6 +64,7 @@ public class FTPFactory {
         if (fc.getReplyCode() >= 300) {
             throw new FatalFTPException(TextUtils.getFtpCodeName(fc.getReplyCode()) + "\n" + fc.getReplyString());
         }
+        Arrays.sort(files, FILE_COMPARATOR);
         List<DownloadTask> result = new ArrayList<DownloadTask>();
 
         //it's a file
@@ -151,6 +154,8 @@ public class FTPFactory {
 
     private List<DownloadTask> createTasksForDirectory(final FTPContext config, final FTPClient fclient, final FTPFile file) throws IOException {
         FTPFile[] files = fclient.listFiles(config.remoteFullPath);
+        Arrays.sort(files, FILE_COMPARATOR);
+
         List<DownloadTask> toReturn = new ArrayList<DownloadTask>();
 
         for (FTPFile f : files) {
@@ -225,4 +230,51 @@ public class FTPFactory {
         }
         return fc;
     }
+
+    private static final Comparator<FTPFile> FILE_COMPARATOR = new Comparator<FTPFile>() {
+        private final String[] FIRST_ARCHIVES = new String[]{"rar"};
+
+        @Override
+        public int compare(FTPFile o1, FTPFile o2) {
+            if (o1.isDirectory() && o2.isFile()) {
+                return -1;
+            } else if (o1.isFile() && o2.isDirectory()) {
+                return 1;
+            } else {
+                String o1Name = o1.getName();
+                String o2Name = o2.getName();
+                if (o1.isFile() && o2.isFile()) {
+                    String o1SimpleName = getFileName(o1Name);
+                    String o2SimpleName = getFileName(o2Name);
+                    int result = o1SimpleName.compareToIgnoreCase(o2SimpleName);
+                    if(result == 0) {
+                        boolean i1 = isFirstArchiveFile(o1Name);
+                        boolean i2 = isFirstArchiveFile(o2Name);
+                        result = (i1 == i2) ? 0 : (i1 ? -1 : 1);
+                        if (result == 0) {
+                            result = o1Name.compareTo(o2Name);
+                        }
+                    }
+                    return result;
+                }
+                return o1Name.compareTo(o2Name);
+            }
+        }
+
+        private String getFileName(String name) {
+            int extStart = name.lastIndexOf(".");
+            return extStart > 0 ? name.substring(0, extStart) : name;
+        }
+
+        private boolean isFirstArchiveFile(String name) {
+            if (name != null) {
+                int extStart = name.lastIndexOf(".");
+                if (extStart >= 0) {
+                    String suffix = name.substring(extStart + 1).toLowerCase();
+                    return Arrays.binarySearch(FIRST_ARCHIVES, suffix) >= 0;
+                }
+            }
+            return false;
+        }
+    };
 }

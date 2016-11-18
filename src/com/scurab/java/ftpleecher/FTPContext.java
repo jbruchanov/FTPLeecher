@@ -7,6 +7,7 @@ import java.io.File;
  * Every object should be unique per thread
  */
 public class FTPContext extends FTPSettings implements Cloneable {
+
     public FTPContext() {
     }
 
@@ -14,7 +15,7 @@ public class FTPContext extends FTPSettings implements Cloneable {
         setConnection(fc);
     }
 
-    public FTPContext setConnection(FTPConnection fc){
+    public FTPContext setConnection(FTPConnection fc) {
         server = fc.server;
         port = fc.port;
         username = fc.username;
@@ -25,7 +26,7 @@ public class FTPContext extends FTPSettings implements Cloneable {
         return this;
     }
 
-    public FTPContext setSettings(FTPSettings fs){
+    public FTPContext setSettings(FTPSettings fs) {
         globalPieceLength = fs.globalPieceLength;
         resume = fs.resume;
         bufferSize = fs.bufferSize;
@@ -82,7 +83,7 @@ public class FTPContext extends FTPSettings implements Cloneable {
      * local file template for {@link String#format(String, Object...)}<br/>
      * Must contains 3 variables for outputFolder, file name and counter
      */
-    public String localMultipleFilesTemplate = "%s" + System.getProperty("file.separator") +"%s.part%03d";
+    public String localMultipleFilesTemplate = "%s" + System.getProperty("file.separator") + "%s.part%03d";
 
     /**
      * local file template for {@link String#format(String, Object...)}<br/>
@@ -117,6 +118,7 @@ public class FTPContext extends FTPSettings implements Cloneable {
 
     /**
      * Use secure ftp connection
+     *
      * @return
      */
     public boolean ftps = false;

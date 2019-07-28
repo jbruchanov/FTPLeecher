@@ -214,7 +214,8 @@ public class FTPFactory {
         } else {
             fc.enterLocalActiveMode();
         }
-        
+
+        fc.setControlEncoding("utf-8");
         fc.setControlKeepAliveTimeout(60);
         fc.setSoTimeout(2000);
         fc.setDataTimeout(2000);

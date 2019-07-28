@@ -1,6 +1,3 @@
-.idea
-/libs/commons-net-3.2-sources.jar
-out
-*.iml
-/test/MainTest.java
-/src/META-INF/MANIFEST.MF
+.gradle/
+.idea/
+build/

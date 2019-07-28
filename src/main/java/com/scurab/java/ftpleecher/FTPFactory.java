@@ -201,6 +201,10 @@ public class FTPFactory {
             });
         }
 
+        fc.setControlEncoding("UTF-8");
+        fc.setControlKeepAliveTimeout(60);
+        fc.setAutodetectUTF8(true);
+
         fc.connect(server, port);
         if (user != null) {
             boolean succ = fc.login(user, pass);
@@ -215,8 +219,6 @@ public class FTPFactory {
             fc.enterLocalActiveMode();
         }
 
-        fc.setControlEncoding("utf-8");
-        fc.setControlKeepAliveTimeout(60);
         fc.setSoTimeout(2000);
         fc.setDataTimeout(2000);
 

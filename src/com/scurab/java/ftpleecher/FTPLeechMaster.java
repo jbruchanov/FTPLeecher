@@ -1,6 +1,8 @@
 package com.scurab.java.ftpleecher;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 
 /**
  * Cor class for implenting working queue

@@ -95,7 +95,7 @@ public class FTPFactory {
 
     private String createFolderIfNeccessary(String folder) throws FatalFTPException {
         File f = new File(folder);
-        if (!f.exists() && !f.mkdir()) {
+        if (!f.mkdirs() && !f.isDirectory()) {
             throw new FatalFTPException("Unable to create folder " + folder);
         }
         return f.getAbsolutePath();

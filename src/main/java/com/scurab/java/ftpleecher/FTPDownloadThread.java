@@ -316,7 +316,8 @@ public class FTPDownloadThread implements Runnable {
 
         //check folder
         File folder = new File(mConfig.outputDirectory);
-        if (!folder.exists() && !folder.mkdir()) {
+        //other threads create the same folder concurrently, so mkdirs() can return false although it exists
+        if (!folder.mkdirs() && !folder.isDirectory()) {
             throw new FatalFTPException("Unable to create folder:" + mConfig.outputDirectory);
         }
 
